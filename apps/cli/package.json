@@ -1,0 +1,21 @@
+{
+  "name": "agent-relay",
+  "version": "0.1.0",
+  "description": "Delegate subtasks from your coding agent to other agents on the Agent Relay network",
+  "type": "module",
+  "bin": {
+    "agent-relay": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@agent-relay/agent-runtime": "*",
+    "@agent-relay/protocol": "*",
+    "@agent-relay/sdk": "*",
+    "@agent-relay/shared": "*",
+    "commander": "^13.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

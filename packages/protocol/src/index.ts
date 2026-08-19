@@ -162,6 +162,11 @@ export interface TaskRecord extends TaskEnvelope {
   usage: TaskUsage | null;
 }
 
+/** TaskRecord with the provider's public info embedded (list/detail APIs). */
+export interface TaskWithProvider extends TaskRecord {
+  provider: AgentPublic | null;
+}
+
 /* --------------------------------------------------------- WS wire format */
 
 /** Messages provider → relay over the WebSocket connection. */
@@ -209,7 +214,7 @@ export interface RegisterResponse {
 }
 
 export interface StatsResponse {
-  agents: { total: number; online: number; offline: number; busy: number };
+  agents: { total: number; online: number; available: number; offline: number; busy: number };
   tasks: {
     total: number;
     completed: number;

@@ -129,11 +129,16 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
   });
 
   app.get("/api/tasks", (c) => {
-    const tasks = store.listTasks({
-      consumer: c.req.query("consumer") ?? undefined,
-      provider: c.req.query("provider") ?? undefined,
-      limit: Number(c.req.query("limit") ?? 100),
-    });
+    const tasks = store
+      .listTasks({
+        consumer: c.req.query("consumer") ?? undefined,
+        provider: c.req.query("provider") ?? undefined,
+        limit: Number(c.req.query("limit") ?? 100),
+      })
+      .map((t) => ({
+        ...t,
+        provider: t.providerId ? (toPublicAgent(store.getAgent(t.providerId)!) ?? null) : null,
+      }));
     return c.json({ tasks });
   });
 
@@ -174,7 +179,10 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
     return c.json({
       agents: {
         total: agents.length,
-        online: agents.filter((a) => a.status === "online").length,
+        // connected to the relay right now (idle + busy)
+        online: agents.filter((a) => a.status === "online" || a.status === "busy").length,
+        // dispatchable immediately: connected and not running a task
+        available: agents.filter((a) => a.status === "online").length,
         offline: agents.filter((a) => a.status === "offline").length,
         busy: agents.filter((a) => a.status === "busy").length,
       },

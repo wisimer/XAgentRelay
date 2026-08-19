@@ -2,12 +2,14 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "types": ["@cloudflare/workers-types"]
   },
   "include": ["src"],
   "references": [
     { "path": "../../packages/protocol" },
-    { "path": "../../packages/relay-core" },
-    { "path": "../../packages/shared" }
+    { "path": "../../packages/relay-core" }
   ]
 }

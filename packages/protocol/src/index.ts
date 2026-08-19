@@ -7,7 +7,8 @@ export const PROTOCOL_VERSION = "1.0.0";
 
 /** Default relay endpoint used when nothing else is configured. */
 export const DEFAULT_RELAY_URL =
-  process.env.AGENT_RELAY_URL ?? "http://127.0.0.1:8787";
+  (typeof process !== "undefined" ? process.env?.AGENT_RELAY_URL : undefined) ??
+  "http://127.0.0.1:8787";
 
 export const HEARTBEAT_MS = 30_000;
 export const OFFLINE_AFTER_MS = 90_000;

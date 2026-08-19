@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@agent-relay/protocol": "*",
+    "@agent-relay/relay-core": "*",
     "@agent-relay/shared": "*",
     "@hono/node-server": "^1.13.0",
     "hono": "^4.6.0",

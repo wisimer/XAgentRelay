@@ -2,10 +2,12 @@
   "files": [],
   "references": [
     { "path": "./packages/protocol" },
+    { "path": "./packages/relay-core" },
     { "path": "./packages/shared" },
     { "path": "./packages/sdk" },
     { "path": "./packages/agent-runtime" },
     { "path": "./apps/relay-server" },
+    { "path": "./apps/relay-worker" },
     { "path": "./apps/cli" }
   ]
 }

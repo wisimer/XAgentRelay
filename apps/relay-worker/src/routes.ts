@@ -6,14 +6,38 @@ import {
   isTerminal,
   normalizeCapabilities,
   toPublicAgent,
+  type AgentRecord,
+  type AgentRegistration,
+  type AgentStatus,
   type CreateTaskRequest,
+  type RelayMessage,
+  type TaskRecord,
+  type TaskStatus,
 } from "@agent-relay/protocol";
-import { newId } from "@agent-relay/shared";
 import { computeStats, dashboardHtml, selectAgent } from "@agent-relay/relay-core";
-import type { AgentConnections } from "./connections.js";
-import type { Store } from "./store.js";
+import { newId } from "./ids";
 
-export function buildApp(store: Store, connections: AgentConnections): Hono {
+/**
+ * Everything the HTTP routes need from the hub. Structurally implemented by
+ * the RelayHub Durable Object — the same shape the node server's
+ * Store + AgentConnections pair provides.
+ */
+export interface RelayBackend {
+  registerAgent(reg: AgentRegistration): AgentRecord;
+  getAgent(id: string): AgentRecord | undefined;
+  listAgents(): AgentRecord[];
+  setAgentStatus(id: string, status: AgentStatus): void;
+  createTask(task: TaskRecord): void;
+  getTask(id: string): TaskRecord | undefined;
+  updateTask(id: string, patch: Partial<TaskRecord>): TaskRecord | undefined;
+  setTaskStatus(id: string, status: TaskStatus): void;
+  listTasks(filter?: { consumer?: string; provider?: string; limit?: number }): TaskRecord[];
+  hasConnection(agentId: string): boolean;
+  sendToAgent(agentId: string, msg: RelayMessage): boolean;
+}
+
+/** HTTP API — a straight port of the node server's routes (api.ts). */
+export function buildRoutes(backend: RelayBackend): Hono {
   const app = new Hono();
   const startedAt = Date.now();
 
@@ -30,7 +54,7 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
     if (!body?.name || !body?.ownerId) {
       return c.json({ error: "name and ownerId are required" }, 400);
     }
-    const agent = store.registerAgent({
+    const agent = backend.registerAgent({
       name: String(body.name),
       runtime: String(body.runtime ?? "mock"),
       capabilities: normalizeCapabilities(body.capabilities),
@@ -42,7 +66,7 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
 
   app.get("/api/agents", (c) => {
     const capability = c.req.query("capability")?.toLowerCase();
-    let agents = store.listAgents();
+    let agents = backend.listAgents();
     if (capability) {
       agents = agents.filter((a) =>
         a.capabilities.some((cap) => cap.toLowerCase() === capability),
@@ -52,7 +76,7 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
   });
 
   app.get("/api/agents/:id", (c) => {
-    const agent = store.getAgent(c.req.param("id"));
+    const agent = backend.getAgent(c.req.param("id"));
     if (!agent) return c.json({ error: "agent not found" }, 404);
     return c.json({ agent: toPublicAgent(agent) });
   });
@@ -68,7 +92,7 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
     const consumerId = c.req.header("x-consumer-id") ?? "anonymous";
 
     // Discovery: only agents with a live socket can be dispatched to.
-    const online = store.listAgents().filter((a) => connections.has(a.id));
+    const online = backend.listAgents().filter((a) => backend.hasConnection(a.id));
     const match = selectAgent(online, capabilities);
     if (!match) {
       return c.json(
@@ -81,7 +105,7 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
     }
 
     const timeout = body.requirements?.timeout ?? DEFAULT_TASK_TIMEOUT_S;
-    const task = {
+    const task: TaskRecord = {
       task_id: newId("task"),
       type: body.type,
       goal: body.goal,
@@ -91,7 +115,7 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
       permissions: body.permissions ?? DEFAULT_TASK_PERMISSIONS,
       consumerId,
       providerId: match.agent.id,
-      status: "pending" as const,
+      status: "pending",
       createdAt: Date.now(),
       startedAt: null,
       completedAt: null,
@@ -99,9 +123,9 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
       result: null,
       usage: null,
     };
-    store.createTask(task);
+    backend.createTask(task);
 
-    const sent = connections.send(match.agent.id, {
+    const sent = backend.sendToAgent(match.agent.id, {
       type: "task_dispatch",
       task: {
         task_id: task.task_id,
@@ -114,12 +138,12 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
       },
     });
     if (!sent) {
-      store.updateTask(task.task_id, { status: "failed", error: "provider disconnected", completedAt: Date.now() });
+      backend.updateTask(task.task_id, { status: "failed", error: "provider disconnected", completedAt: Date.now() });
       return c.json({ error: "provider disconnected during dispatch", code: "dispatch_failed" }, 502);
     }
 
-    store.setTaskStatus(task.task_id, "assigned");
-    store.setAgentStatus(match.agent.id, "busy");
+    backend.setTaskStatus(task.task_id, "assigned");
+    backend.setAgentStatus(match.agent.id, "busy");
     return c.json({
       task_id: task.task_id,
       status: "assigned",
@@ -128,21 +152,21 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
   });
 
   app.get("/api/tasks", (c) => {
-    const tasks = store
+    const tasks = backend
       .listTasks({
         consumer: c.req.query("consumer") ?? undefined,
         provider: c.req.query("provider") ?? undefined,
         limit: Number(c.req.query("limit") ?? 100),
       })
-      .map((t) => ({
-        ...t,
-        provider: t.providerId ? (toPublicAgent(store.getAgent(t.providerId)!) ?? null) : null,
-      }));
+      .map((t) => {
+        const provider = t.providerId ? backend.getAgent(t.providerId) : undefined;
+        return { ...t, provider: provider ? toPublicAgent(provider) : null };
+      });
     return c.json({ tasks });
   });
 
   app.get("/api/tasks/:id", (c) => {
-    const task = store.getTask(c.req.param("id"));
+    const task = backend.getTask(c.req.param("id"));
     if (!task) return c.json({ error: "task not found" }, 404);
     return c.json({ task });
   });
@@ -152,28 +176,28 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
    * provider over its WebSocket so it kills the running runtime process.
    */
   app.post("/api/tasks/:id/cancel", (c) => {
-    const task = store.getTask(c.req.param("id"));
+    const task = backend.getTask(c.req.param("id"));
     if (!task) return c.json({ error: "task not found" }, 404);
     if (isTerminal(task.status)) {
       return c.json({ error: `task already ${task.status}` }, 409);
     }
-    store.updateTask(task.task_id, {
+    backend.updateTask(task.task_id, {
       status: "cancelled",
       error: "cancelled by consumer",
       completedAt: Date.now(),
     });
     if (task.providerId) {
-      connections.send(task.providerId, { type: "task_cancel", task_id: task.task_id });
-      store.setAgentStatus(
+      backend.sendToAgent(task.providerId, { type: "task_cancel", task_id: task.task_id });
+      backend.setAgentStatus(
         task.providerId,
-        connections.has(task.providerId) ? "online" : "offline",
+        backend.hasConnection(task.providerId) ? "online" : "offline",
       );
     }
     return c.json({ ok: true, task_id: task.task_id });
   });
 
   app.get("/api/stats", (c) =>
-    c.json(computeStats(store.listAgents(), store.listTasks({ limit: 10000 }))),
+    c.json(computeStats(backend.listAgents(), backend.listTasks({ limit: 10000 }))),
   );
 
   return app;

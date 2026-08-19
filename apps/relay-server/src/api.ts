@@ -3,6 +3,7 @@ import {
   DEFAULT_TASK_PERMISSIONS,
   DEFAULT_TASK_TIMEOUT_S,
   PROTOCOL_VERSION,
+  isTerminal,
   normalizeCapabilities,
   toPublicAgent,
   type CreateTaskRequest,
@@ -142,6 +143,31 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
     return c.json({ task });
   });
 
+  /**
+   * Consumer interrupt: mark the task cancelled and push task_cancel to the
+   * provider over its WebSocket so it kills the running runtime process.
+   */
+  app.post("/api/tasks/:id/cancel", (c) => {
+    const task = store.getTask(c.req.param("id"));
+    if (!task) return c.json({ error: "task not found" }, 404);
+    if (isTerminal(task.status)) {
+      return c.json({ error: `task already ${task.status}` }, 409);
+    }
+    store.updateTask(task.task_id, {
+      status: "cancelled",
+      error: "cancelled by consumer",
+      completedAt: Date.now(),
+    });
+    if (task.providerId) {
+      connections.send(task.providerId, { type: "task_cancel", task_id: task.task_id });
+      store.setAgentStatus(
+        task.providerId,
+        connections.has(task.providerId) ? "online" : "offline",
+      );
+    }
+    return c.json({ ok: true, task_id: task.task_id });
+  });
+
   app.get("/api/stats", (c) => {
     const agents = store.listAgents();
     const tasks = store.listTasks({ limit: 10000 });
@@ -157,6 +183,7 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
         completed: tasks.filter((t) => t.status === "completed").length,
         failed: tasks.filter((t) => t.status === "failed").length,
         timeout: tasks.filter((t) => t.status === "timeout").length,
+        cancelled: tasks.filter((t) => t.status === "cancelled").length,
         active: tasks.filter((t) => ["pending", "assigned", "accepted", "running"].includes(t.status)).length,
       },
     });

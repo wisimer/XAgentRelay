@@ -2,7 +2,11 @@
 import http from "node:http";
 import { serve } from "@hono/node-server";
 import { WebSocketServer } from "ws";
-import { DEFAULT_TASK_TIMEOUT_S, OFFLINE_AFTER_MS } from "@agent-relay/protocol";
+import {
+  DEFAULT_TASK_TIMEOUT_S,
+  OFFLINE_AFTER_MS,
+  isTerminal,
+} from "@agent-relay/protocol";
 import { buildApp } from "./api.js";
 import { AgentConnections } from "./connections.js";
 import { Store } from "./store.js";
@@ -41,7 +45,7 @@ setupProviderSocket(wss, store, connections);
 setInterval(() => {
   const now = Date.now();
   for (const task of store.listTasks({ limit: 10000 })) {
-    if (["completed", "failed", "timeout"].includes(task.status)) continue;
+    if (isTerminal(task.status)) continue;
     const timeoutMs = (task.requirements?.timeout ?? DEFAULT_TASK_TIMEOUT_S) * 1000 + 15_000;
     if (now - task.createdAt > timeoutMs) {
       store.updateTask(task.task_id, { status: "timeout", error: "provider did not finish in time", completedAt: now });

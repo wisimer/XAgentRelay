@@ -25,6 +25,10 @@ export async function runServe(opts: ServeOptions): Promise<void> {
   }
 
   let conn: ProviderConnection;
+  /** task_id → AbortController for the running runtime process. */
+  const running = new Map<string, AbortController>();
+  let shuttingDown = false;
+
   conn = new ProviderConnection({
     baseUrl,
     agentId: identity.agent_id,
@@ -36,21 +40,36 @@ export async function runServe(opts: ServeOptions): Promise<void> {
     onTask: async (task: TaskEnvelope) => {
       printTaskBanner(task);
       const startedAt = Date.now();
+      const abort = new AbortController();
+      running.set(task.task_id, abort);
       conn.acceptTask(task.task_id);
       try {
         console.log(dim(`  · running with runtime "${profile.runtime}" (read-only, sandboxed temp dir)`));
         conn.startTask(task.task_id);
-        const outcome = await runTask(task, profile.runtime);
+        const outcome = await runTask(task, profile.runtime, { signal: abort.signal });
         conn.sendResult(task.task_id, { status: "completed", result: outcome.result, usage: outcome.usage });
         const secs = ((Date.now() - startedAt) / 1000).toFixed(1);
         console.log(green(`  ✓ completed in ${secs}s — ${outcome.result.summary.slice(0, 80)}`));
       } catch (e) {
-        const message = (e as Error).message ?? String(e);
-        conn.sendResult(task.task_id, { status: "failed", error: message });
-        console.log(red(`  ✗ failed: ${message}`));
+        if (abort.signal.aborted) {
+          // Consumer cancelled — relay already finalized the task, nothing to send.
+          console.log(dim(`  ⊘ task cancelled, runtime process killed`));
+        } else {
+          const message = (e as Error).message ?? String(e);
+          conn.sendResult(task.task_id, { status: "failed", error: message });
+          console.log(red(`  ✗ failed: ${message}`));
+        }
+      } finally {
+        running.delete(task.task_id);
       }
-      console.log(dim("  ─────────────────────────────────────────"));
-      console.log(bold("Waiting for tasks..."));
+      if (!shuttingDown) {
+        console.log(dim("  ─────────────────────────────────────────"));
+        console.log(bold("Waiting for tasks..."));
+      }
+    },
+    onCancel: (taskId) => {
+      console.log(yellow(`  ⊘ cancel received for ${taskId} — stopping runtime`));
+      running.get(taskId)?.abort();
     },
   });
 
@@ -77,9 +96,25 @@ export async function runServe(opts: ServeOptions): Promise<void> {
   console.log(dim("  Ctrl+C to go offline\n"));
 
   const shutdown = () => {
-    console.log(dim("\n  going offline..."));
-    conn.close();
-    process.exit(0);
+    if (shuttingDown) return;
+    shuttingDown = true;
+    // Tell the relay about in-flight tasks so consumers fail fast instead of
+    // waiting for the timeout sweeper; then kill local runtime processes.
+    for (const [taskId, abort] of running) {
+      conn.sendResult(taskId, { status: "failed", error: "provider shutting down" });
+      abort.abort();
+    }
+    if (running.size) {
+      console.log(dim(`\n  reported ${running.size} in-flight task(s) as failed, stopping runtimes...`));
+    } else {
+      console.log(dim("\n  going offline..."));
+    }
+    running.clear();
+    // Small delay so the failure messages flush over the socket before close.
+    setTimeout(() => {
+      conn.close();
+      process.exit(0);
+    }, 150);
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);

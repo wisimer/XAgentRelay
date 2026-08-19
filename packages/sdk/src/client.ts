@@ -58,6 +58,11 @@ export class RelayClient {
     return this.req("/api/tasks", { method: "POST", body: JSON.stringify(body) });
   }
 
+  /** Cancel a running task; the relay forwards task_cancel to the provider. */
+  async cancelTask(id: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/tasks/${id}/cancel`, { method: "POST" });
+  }
+
   async getTask(id: string): Promise<TaskRecord> {
     const res = await this.req<{ task: TaskRecord }>(`/api/tasks/${id}`);
     return res.task;

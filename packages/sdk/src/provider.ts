@@ -24,6 +24,8 @@ export interface ProviderConnectionOptions {
   token: string;
   /** Called when the relay dispatches a task. Rejecting reports a failed result. */
   onTask: (task: TaskEnvelope) => Promise<void>;
+  /** Called when the consumer (or relay) cancels a running task. Abort the work. */
+  onCancel?: (taskId: string) => void;
   heartbeatMs?: number;
   reconnectDelayMs?: number;
   onStatusChange?: (status: ProviderStatus) => void;
@@ -138,6 +140,8 @@ export class ProviderConnection {
               error: err?.message ?? String(err),
             });
           });
+        } else if (msg.type === "task_cancel") {
+          this.opts.onCancel?.(msg.task_id);
         } else if (msg.type === "error") {
           this.opts.log?.(`relay error: ${msg.message}`);
         }

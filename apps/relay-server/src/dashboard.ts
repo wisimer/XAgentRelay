@@ -30,6 +30,7 @@ export const dashboardHtml = `<!doctype html>
   tr.taskrow:hover { background:var(--panel); }
   .st { padding:1px 10px; border-radius:99px; font-size:11px; border:1px solid var(--line); }
   .st.completed { color:var(--ok); } .st.failed,.st.timeout { color:var(--err); }
+  .st.cancelled { color:var(--warn); }
   .st.running,.st.accepted,.st.assigned,.st.pending { color:var(--warn); }
   #detail { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px; margin-top:16px; display:none; white-space:pre-wrap; font-size:13px; }
   .empty { color:var(--dim); padding:18px 0; }
@@ -59,7 +60,8 @@ export const dashboardHtml = `<!doctype html>
       '<div class="stat"><b>' + s.tasks.active + '</b><small>active tasks</small></div>' +
       '<div class="stat"><b>' + s.tasks.completed + '</b><small>completed</small></div>' +
       '<div class="stat"><b>' + s.tasks.failed + '</b><small>failed</small></div>' +
-      '<div class="stat"><b>' + s.tasks.timeout + '</b><small>timeout</small></div>';
+      '<div class="stat"><b>' + s.tasks.timeout + '</b><small>timeout</small></div>' +
+      '<div class="stat"><b>' + (s.tasks.cancelled || 0) + '</b><small>cancelled</small></div>';
   }
   function renderAgents(agents) {
     var el = document.getElementById("agents");

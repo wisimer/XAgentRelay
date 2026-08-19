@@ -1,5 +1,5 @@
 import type { WebSocket, WebSocketServer } from "ws";
-import type { ProviderMessage } from "@agent-relay/protocol";
+import { isTerminal, type ProviderMessage } from "@agent-relay/protocol";
 import type { AgentConnections } from "./connections.js";
 import { parseMessage } from "./connections.js";
 import type { Store } from "./store.js";
@@ -52,7 +52,7 @@ export function setupProviderSocket(
           if (!agentId) return;
           const task = store.getTask(msg.task_id);
           if (!task || task.providerId !== agentId) return;
-          if (["completed", "failed", "timeout"].includes(task.status)) return; // late result after timeout
+          if (isTerminal(task.status)) return; // late result after timeout/cancel
           const now = Date.now();
           const latency = (task.startedAt ?? task.createdAt) && now > (task.startedAt ?? task.createdAt)
             ? now - (task.startedAt ?? task.createdAt)
@@ -72,7 +72,21 @@ export function setupProviderSocket(
     });
 
     ws.on("close", () => {
-      if (agentId) connections.detach(agentId, ws);
+      if (!agentId) return;
+      connections.detach(agentId, ws);
+      // Provider went away (crash, network loss): any in-flight task can never
+      // report back — fail it immediately instead of letting consumers wait
+      // for the timeout sweeper.
+      const now = Date.now();
+      for (const task of store.listTasks({ provider: agentId, limit: 1000 })) {
+        if (isTerminal(task.status)) continue;
+        store.updateTask(task.task_id, {
+          status: "failed",
+          error: "provider disconnected",
+          completedAt: now,
+        });
+        store.recordOutcome(agentId, false, now - (task.startedAt ?? task.createdAt));
+      }
     });
   });
 }

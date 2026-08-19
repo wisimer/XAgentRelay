@@ -73,6 +73,21 @@ export async function runMcpServer(): Promise<void> {
   const identity = ensureIdentity();
   const rl = readline.createInterface({ input: process.stdin });
 
+  // Task ids currently being delegated through this server. When the host
+  // agent kills us (SIGINT/SIGTERM), cancel them so providers stop working.
+  const inFlight = new Set<string>();
+  const cancelAllInFlight = async () => {
+    const ids = [...inFlight];
+    if (ids.length) {
+      const client = new RelayClient(baseUrl, { consumerId: identity.owner_id });
+      await Promise.allSettled(ids.map((id) => client.cancelTask(id)));
+      process.stderr.write(`[agent-relay mcp] cancelled ${ids.length} in-flight task(s)\n`);
+    }
+    process.exit(0);
+  };
+  process.on("SIGINT", () => void cancelAllInFlight());
+  process.on("SIGTERM", () => void cancelAllInFlight());
+
   // Exit when stdin closes and no in-flight requests remain (tests, pipes).
   let pending = 0;
   let stdinClosed = false;
@@ -90,7 +105,7 @@ export async function runMcpServer(): Promise<void> {
       return;
     }
     pending += 1;
-    handle(req, baseUrl, identity.owner_id)
+    handle(req, baseUrl, identity.owner_id, inFlight)
       .catch((err) => {
         if (req.id !== undefined) respond(req.id, { error: { code: -32603, message: String(err) } });
       })
@@ -112,7 +127,12 @@ function respond(id: number | string, result: unknown): void {
   process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\n");
 }
 
-async function handle(req: JsonRpcRequest, baseUrl: string, consumerId: string): Promise<void> {
+async function handle(
+  req: JsonRpcRequest,
+  baseUrl: string,
+  consumerId: string,
+  inFlight: Set<string>,
+): Promise<void> {
   // Notifications (no id) never get a response.
   if (req.id === undefined) return;
 
@@ -131,7 +151,7 @@ async function handle(req: JsonRpcRequest, baseUrl: string, consumerId: string):
   if (req.method === "tools/call") {
     const name = String(req.params?.name ?? "");
     const args = (req.params?.arguments ?? {}) as Record<string, unknown>;
-    if (name === "delegate_to_agent") return await callDelegate(req.id, args, baseUrl, consumerId);
+    if (name === "delegate_to_agent") return await callDelegate(req.id, args, baseUrl, consumerId, inFlight);
     if (name === "list_agents") return await callListAgents(req.id, args, baseUrl);
     respond(req.id, { error: { code: -32602, message: `unknown tool: ${name}` } });
     return;
@@ -148,6 +168,7 @@ async function callDelegate(
   args: Record<string, unknown>,
   baseUrl: string,
   consumerId: string,
+  inFlight: Set<string>,
 ): Promise<void> {
   const goal = String(args.task ?? "").trim();
   if (!goal) {
@@ -163,6 +184,7 @@ async function callDelegate(
       ? (args.environment as Record<string, string | number>)
       : undefined;
 
+  let taskId: string | null = null;
   try {
     const task = await delegate({
       goal,
@@ -171,6 +193,12 @@ async function callDelegate(
       requirements: typeof args.timeout === "number" ? { timeout: args.timeout } : undefined,
       baseUrl,
       consumerId,
+      onEvent: (ev) => {
+        if (ev.type === "dispatched") {
+          taskId = ev.task_id;
+          inFlight.add(ev.task_id);
+        }
+      },
     });
     respond(id, { content: [{ type: "text", text: formatResult(task) }] });
   } catch (e) {
@@ -179,6 +207,8 @@ async function callDelegate(
         ? `delegation failed: ${e.message}${e.task ? ` (status: ${e.task.status})` : ""}`
         : `delegation failed: ${(e as Error).message}`;
     respond(id, { content: [{ type: "text", text: message }], isError: true });
+  } finally {
+    if (taskId) inFlight.delete(taskId);
   }
 }
 

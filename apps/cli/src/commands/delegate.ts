@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
-import { delegate, DelegationError } from "@agent-relay/sdk";
+import { delegate, DelegationError, RelayClient } from "@agent-relay/sdk";
 import type { TaskFile } from "@agent-relay/protocol";
 import { ensureIdentity } from "@agent-relay/shared";
-import { bold, cyan, dim, err, green, resolveRelayUrl, statusColor } from "../util.js";
+import { bold, cyan, dim, err, green, resolveRelayUrl, statusColor, yellow } from "../util.js";
 
 export interface DelegateOptions {
   relay?: string;
@@ -42,6 +42,28 @@ export async function runDelegate(goal: string[], opts: DelegateOptions): Promis
   console.log(dim(`Searching agent network at ${baseUrl}...`));
   if (capabilities.length) console.log(dim(`Required capabilities: ${capabilities.join(", ")}`));
 
+  // Interrupt handling: Ctrl+C / kill while waiting must propagate to the
+  // provider, which kills the running runtime process on its side.
+  const client = new RelayClient(baseUrl, { consumerId: identity.owner_id });
+  let taskId: string | null = null;
+  let interrupted = false;
+  const onInterrupt = async (signal: string) => {
+    if (interrupted) return;
+    interrupted = true;
+    if (taskId) {
+      console.log(yellow(`\n  ${signal} received — cancelling task ${taskId}...`));
+      try {
+        await Promise.race([client.cancelTask(taskId), new Promise((r) => setTimeout(r, 3000))]);
+        console.log(dim(`  task ${taskId} cancelled, provider notified`));
+      } catch {
+        console.log(dim("  could not reach relay to cancel; task may finish on its own"));
+      }
+    }
+    process.exit(130);
+  };
+  process.once("SIGINT", () => void onInterrupt("SIGINT"));
+  process.once("SIGTERM", () => void onInterrupt("SIGTERM"));
+
   try {
     const task = await delegate({
       goal: goal.join(" "),
@@ -56,6 +78,7 @@ export async function runDelegate(goal: string[], opts: DelegateOptions): Promis
       consumerId: identity.owner_id,
       onEvent: (ev) => {
         if (ev.type === "dispatched") {
+          taskId = ev.task_id;
           const p = ev.provider;
           console.log(
             p

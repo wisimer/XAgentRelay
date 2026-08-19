@@ -82,9 +82,10 @@ export type TaskStatus =
   | "running"
   | "completed"
   | "failed"
-  | "timeout";
+  | "timeout"
+  | "cancelled";
 
-export const TERMINAL_STATUSES: TaskStatus[] = ["completed", "failed", "timeout"];
+export const TERMINAL_STATUSES: TaskStatus[] = ["completed", "failed", "timeout", "cancelled"];
 
 export function isTerminal(status: TaskStatus): boolean {
   return TERMINAL_STATUSES.includes(status);
@@ -181,6 +182,7 @@ export type ProviderMessage =
 export type RelayMessage =
   | { type: "registered"; agent: AgentPublic }
   | { type: "task_dispatch"; task: TaskEnvelope }
+  | { type: "task_cancel"; task_id: string }
   | { type: "error"; message: string };
 
 /* ------------------------------------------------------------ HTTP payload */
@@ -208,7 +210,14 @@ export interface RegisterResponse {
 
 export interface StatsResponse {
   agents: { total: number; online: number; offline: number; busy: number };
-  tasks: { total: number; completed: number; failed: number; timeout: number; active: number };
+  tasks: {
+    total: number;
+    completed: number;
+    failed: number;
+    timeout: number;
+    cancelled: number;
+    active: number;
+  };
 }
 
 /** Normalize a capability list: trim, lowercase, dedupe, drop empties. */

@@ -16,6 +16,11 @@ export interface RunOutcome {
   raw: string;
 }
 
+export interface RunOptions {
+  /** Abort to kill the underlying runtime process (task cancelled upstream). */
+  signal?: AbortSignal;
+}
+
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 
 /**
@@ -24,12 +29,13 @@ const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
  * stdin is piped and closed immediately: agent CLIs (opencode in particular)
  * read stdin until EOF before starting, and execFile's default leaves that
  * pipe open until the child exits — a classic deadlock that hangs forever.
- * On timeout the child gets SIGTERM, then SIGKILL after 5s.
+ * On timeout the child gets SIGTERM, then SIGKILL after 5s. Aborting kills
+ * the child immediately.
  */
 function runCli(
   bin: string,
   args: string[],
-  opts: { cwd: string; timeoutMs: number },
+  opts: { cwd: string; timeoutMs: number; signal?: AbortSignal },
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolveP, reject) => {
     const child = spawn(bin, args, { cwd: opts.cwd, stdio: ["pipe", "pipe", "pipe"] });
@@ -50,6 +56,19 @@ function runCli(
         ),
       );
     }, opts.timeoutMs);
+
+    const abortHandler = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(killTimer);
+      child.kill("SIGTERM");
+      setTimeout(() => child.kill("SIGKILL"), 3000).unref();
+      reject(new Error("task cancelled by consumer"));
+    };
+    if (opts.signal) {
+      if (opts.signal.aborted) abortHandler();
+      else opts.signal.addEventListener("abort", abortHandler, { once: true });
+    }
 
     const onData = (which: "stdout" | "stderr") => (chunk: Buffer) => {
       if (which === "stdout") stdout += chunk;
@@ -95,8 +114,12 @@ function runCli(
  * runtime runs there — the provider machine's own files are never touched,
  * matching the MVP rule "remote expert analysis, not remote code edits".
  */
-export async function runTask(task: TaskEnvelope, runtime: string): Promise<RunOutcome> {
-  if (runtime === "mock") return mockRun(task);
+export async function runTask(
+  task: TaskEnvelope,
+  runtime: string,
+  opts: RunOptions = {},
+): Promise<RunOutcome> {
+  if (runtime === "mock") return mockRun(task, opts.signal);
 
   const prompt = buildTaskPrompt(task);
   const dir = mkdtempSync(join(tmpdir(), "agent-relay-task-"));
@@ -113,15 +136,24 @@ export async function runTask(task: TaskEnvelope, runtime: string): Promise<RunO
       const { stdout } = await runCli("claude", ["-p", prompt, "--output-format", "json"], {
         cwd: dir,
         timeoutMs,
+        signal: opts.signal,
       });
       return parseClaudeOutput(stdout);
     }
     if (runtime === "opencode") {
-      const { stdout } = await runCli("opencode", ["run", prompt], { cwd: dir, timeoutMs });
+      const { stdout } = await runCli("opencode", ["run", prompt], {
+        cwd: dir,
+        timeoutMs,
+        signal: opts.signal,
+      });
       return textRunOutcome(stdout, task.goal);
     }
     if (runtime === "codex") {
-      const { stdout } = await runCli("codex", ["exec", prompt], { cwd: dir, timeoutMs });
+      const { stdout } = await runCli("codex", ["exec", prompt], {
+        cwd: dir,
+        timeoutMs,
+        signal: opts.signal,
+      });
       return textRunOutcome(stdout, task.goal);
     }
     throw new Error(`unsupported runtime: ${runtime}`);
@@ -163,8 +195,9 @@ function textRunOutcome(text: string, goal: string): RunOutcome {
   return { result: { summary, output: trimmed }, raw: trimmed };
 }
 
-async function mockRun(task: TaskEnvelope): Promise<RunOutcome> {
-  await new Promise((r) => setTimeout(r, 400));
+async function mockRun(task: TaskEnvelope, signal?: AbortSignal): Promise<RunOutcome> {
+  const delayMs = Number(process.env.AGENT_RELAY_MOCK_DELAY_MS ?? 400);
+  await interruptibleSleep(delayMs, signal);
   const caps = task.capabilities.join(", ") || "general";
   return {
     result: {
@@ -179,4 +212,17 @@ async function mockRun(task: TaskEnvelope): Promise<RunOutcome> {
     usage: { input_tokens: 128, output_tokens: 64 },
     raw: "mock output",
   };
+}
+
+function interruptibleSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    if (!signal) return;
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new Error("task cancelled by consumer"));
+    };
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  });
 }

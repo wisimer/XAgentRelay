@@ -128,8 +128,22 @@ Provider 主动连 `wss://relay/agent`,30s 心跳,断线即 offline,自动重连
 ```
 pending → assigned → accepted → running → completed
                                     ├→ failed
-                                    └→ timeout   (Relay 侧超时巡检兜底)
+                                    ├→ timeout   (Relay 侧超时巡检兜底)
+                                    └→ cancelled (Consumer 主动取消)
 ```
+
+### 中断与异常处理
+
+委托发起后,任何一方中断都会传播到另一方,任务立即结束而不是等超时:
+
+| 中断方 | 行为 |
+|---|---|
+| Consumer Ctrl+C / MCP 被杀 | `POST /api/tasks/:id/cancel` → relay 置 `cancelled` 并向 Provider 推送 `task_cancel` → Provider 杀掉正在运行的 runtime 子进程并释放 |
+| Provider Ctrl+C(优雅关闭) | serve 退出前把在途任务批量报为 `failed`(provider shutting down)→ Consumer 立即收到失败,~1s 内返回 |
+| Provider 崩溃 / 掉线(SIGKILL、断网) | relay 在 WebSocket close 时把该 Agent 所有在途任务置为 `failed`(provider disconnected),Consumer 立刻失败返回 |
+| 双侧兜底 | Provider 本地按 `requirements.timeout` 强杀 runtime(SIGTERM→SIGKILL);relay 巡检超时置 `timeout` |
+
+Consumer 进程被 `kill -9` 时来不及发 cancel,此时任务会在 Provider 上跑到超时为止 —— 这是 MVP 的已知取舍(HTTP 轮询无法探测 Consumer 死活,Phase 2 可换 SSE 长连接)。
 
 ### 能力匹配(文档 §11)
 

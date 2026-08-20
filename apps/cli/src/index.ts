@@ -15,7 +15,7 @@ const program = new Command();
 program
   .name("x-agent-relay")
   .description("Let your agent call other agents like tools")
-  .version("0.1.5");
+  .version("0.1.7");
 
 program
   .command("init")

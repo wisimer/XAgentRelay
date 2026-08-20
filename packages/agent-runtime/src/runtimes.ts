@@ -121,6 +121,36 @@ function runCli(
 }
 
 /**
+ * Simple prompt→stdout runtimes. Headless invocations follow each tool's docs;
+ * stdout streams as chunks and the final text becomes the task result.
+ */
+interface CliSpec {
+  bin: string;
+  args: (prompt: string) => string[];
+}
+
+const CLI_RUNTIMES: Record<string, CliSpec> = {
+  opencode: { bin: "opencode", args: (p) => ["run", p] },
+  codex: { bin: "codex", args: (p) => ["exec", p] },
+  // GitHub Copilot CLI: -p is headless; --allow-all-tools avoids approval hangs.
+  copilot: { bin: "copilot", args: (p) => ["-p", p, "--allow-all-tools"] },
+  // Google Antigravity CLI: -p headless mode (tool calls approved by policy).
+  antigravity: { bin: "agy", args: (p) => ["-p", p] },
+  // Kiro CLI 2.0: --no-interactive prints the first response and exits.
+  kiro: { bin: "kiro-cli", args: (p) => ["chat", "--no-interactive", "--trust-all-tools", p] },
+  // ByteDance trae-agent: `run` executes one task non-interactively.
+  "trae-agent": { bin: "trae-cli", args: (p) => ["run", p] },
+  // pi coding agent: -p prints the response and exits.
+  pi: { bin: "pi", args: (p) => ["-p", p] },
+  // Hermes Agent: chat -q is single-query (non-interactive) mode.
+  hermes: { bin: "hermes", args: (p) => ["chat", "-q", p] },
+  // Qoder CLI: no documented headless flags yet — best-effort positional.
+  qoder: { bin: "qoder", args: (p) => [p] },
+  // ZCode: headless -p is undocumented — best-effort, claude-style.
+  zcode: { bin: "zcode", args: (p) => ["-p", p] },
+};
+
+/**
  * Execute a delegated task with the local agent runtime.
  *
  * Context files are materialized inside a throwaway temp directory and the
@@ -182,17 +212,9 @@ export async function runTask(
       }
       return parseClaudeStream(lines, stdout, task.goal);
     }
-    if (runtime === "opencode") {
-      const { stdout } = await runCli("opencode", ["run", prompt], {
-        cwd: dir,
-        timeoutMs,
-        signal: opts.signal,
-        onChunk: opts.onChunk,
-      });
-      return textRunOutcome(stdout, task.goal);
-    }
-    if (runtime === "codex") {
-      const { stdout } = await runCli("codex", ["exec", prompt], {
+    const spec = CLI_RUNTIMES[runtime];
+    if (spec) {
+      const { stdout } = await runCli(spec.bin, spec.args(prompt), {
         cwd: dir,
         timeoutMs,
         signal: opts.signal,
@@ -287,7 +309,7 @@ async function mockRun(
         `This is a mock provider response. The task "${task.goal}" was received ` +
         `with required capabilities [${caps}]. In production this slot would ` +
         `contain the local agent runtime's real analysis.`,
-      recommendation: "Install claude/opencode/codex and re-register to get real answers.",
+      recommendation: "Install a coding-agent CLI (claude / opencode / codex / copilot / pi / …) and re-register to get real answers.",
       confidence: 0.42,
     },
     usage: { input_tokens: 128, output_tokens: 64 },

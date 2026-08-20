@@ -18,8 +18,20 @@ export const DEFAULT_TASK_TIMEOUT_S = 300;
 
 export type AgentStatus = "online" | "offline" | "busy";
 
-/** Agent runtimes supported in MVP phase 1. */
-export type Runtime = "claude-code" | "opencode" | "codex" | "mock";
+/** Agent runtimes supported as provider executors in MVP phase 1. */
+export type Runtime =
+  | "claude-code"
+  | "opencode"
+  | "codex"
+  | "copilot" // GitHub Copilot CLI (`copilot -p`)
+  | "antigravity" // Google Antigravity CLI (`agy -p`)
+  | "kiro" // AWS Kiro CLI (`kiro-cli chat --no-interactive`)
+  | "trae-agent" // ByteDance trae-agent (`trae-cli run`)
+  | "pi" // pi coding agent (`pi -p`)
+  | "hermes" // Nous Research Hermes Agent (`hermes chat -q`)
+  | "qoder" // Qoder CLI (best-effort positional)
+  | "zcode" // Zhipu ZCode (best-effort `-p`)
+  | "mock";
 
 export interface AgentRegistration {
   name: string;

@@ -14,6 +14,14 @@ const CANDIDATES: { runtime: string; bin: string }[] = [
   { runtime: "claude-code", bin: "claude" },
   { runtime: "opencode", bin: "opencode" },
   { runtime: "codex", bin: "codex" },
+  { runtime: "copilot", bin: "copilot" },
+  { runtime: "antigravity", bin: "agy" },
+  { runtime: "kiro", bin: "kiro-cli" },
+  { runtime: "trae-agent", bin: "trae-cli" },
+  { runtime: "pi", bin: "pi" },
+  { runtime: "hermes", bin: "hermes" },
+  { runtime: "qoder", bin: "qoder" },
+  { runtime: "zcode", bin: "zcode" },
 ];
 
 /** Detect which coding-agent CLIs are installed on this machine. */

@@ -30,7 +30,7 @@ Two relay implementations share the same business logic via `@x-agent-relay/rela
 |---|---|---|
 | `packages/protocol` | `@x-agent-relay/protocol` | Shared types & wire format — the single source of truth |
 | `packages/sdk` | `@x-agent-relay/sdk` | HTTP client, provider WS client, `delegate()` helper |
-| `packages/agent-runtime` | `@x-agent-relay/agent-runtime` | Runs `claude-code` / `opencode` / `codex` / `mock` CLIs, streams stdout |
+| `packages/agent-runtime` | `@x-agent-relay/agent-runtime` | Runs coding-agent CLIs (claude-code / opencode / codex / copilot / antigravity / kiro / trae-agent / pi / hermes / qoder / zcode / mock), streams stdout |
 | `packages/relay-core` | `@x-agent-relay/relay-core` | Shared relay logic: matcher, dashboard, stats, SSE stream hub |
 | `packages/shared` | `@x-agent-relay/shared` | Config/identity files under `~/.x-agent-relay/` |
 | `apps/cli` | `x-agent-relay-cli` (npm) | The `x-agent-relay` command |
@@ -111,8 +111,17 @@ heartbeats every 30 s (offline after 90 s of silence), then waits for
 - **claude-code** — `claude -p <goal> --output-format stream-json --verbose`;
   NDJSON events are parsed live (assistant text blocks and `tool_use` become
   stream chunks; the final `{"type":"result"}` event yields result + usage).
-- **opencode / codex** — spawned with the goal; stdout streamed, final output
-  parsed as the result.
+- **opencode / codex** — `opencode run <goal>` / `codex exec <goal>`; stdout
+  streamed, final output parsed as the result.
+- **copilot** (GitHub Copilot CLI) — `copilot -p <goal> --allow-all-tools`.
+- **antigravity** (Google) — `agy -p <goal>`; headless mode approves tools by policy.
+- **kiro** (AWS Kiro CLI) — `kiro-cli chat --no-interactive --trust-all-tools <goal>`.
+- **trae-agent** (ByteDance) — `trae-cli run <goal>` (the open-source agent CLI;
+  the `trae` IDE launcher cannot run headless tasks).
+- **pi** — `pi -p <goal>` (print mode) from `@mariozechner/pi-coding-agent`.
+- **hermes** (Nous Research) — `hermes chat -q <goal>` (single-query mode).
+- **qoder / zcode** — best-effort: no documented headless flags yet
+  (`qoder <goal>` / `zcode -p <goal>`); adjust if upstream documents a print mode.
 - **mock** — deterministic fake runtime for demos/tests.
 
 ### Streaming
@@ -157,7 +166,7 @@ Agent Relay 有三个角色:
 |---|---|---|
 | `packages/protocol` | `@x-agent-relay/protocol` | 共享类型与线上格式 — 唯一事实来源 |
 | `packages/sdk` | `@x-agent-relay/sdk` | HTTP 客户端、Provider WS 客户端、`delegate()` 助手 |
-| `packages/agent-runtime` | `@x-agent-relay/agent-runtime` | 运行 `claude-code` / `opencode` / `codex` / `mock` CLI,流式读取 stdout |
+| `packages/agent-runtime` | `@x-agent-relay/agent-runtime` | 运行各 coding-agent CLI(claude-code / opencode / codex / copilot / antigravity / kiro / trae-agent / pi / hermes / qoder / zcode / mock),流式读取 stdout |
 | `packages/relay-core` | `@x-agent-relay/relay-core` | Relay 共享逻辑:匹配器、Dashboard、统计、SSE 流中心 |
 | `packages/shared` | `@x-agent-relay/shared` | `~/.x-agent-relay/` 下的配置 / 身份文件 |
 | `apps/cli` | `x-agent-relay-cli`(npm) | `x-agent-relay` 命令 |
@@ -236,7 +245,17 @@ pending → assigned → accepted → running → completed
 - **claude-code** — `claude -p <goal> --output-format stream-json --verbose`;
   实时解析 NDJSON 事件(assistant 文本块和 `tool_use` 转为流式 chunk;最终的
   `{"type":"result"}` 事件给出结果 + usage)。
-- **opencode / codex** — 带上 goal 启动;stdout 流式转发,最终输出解析为结果。
+- **opencode / codex** — `opencode run <goal>` / `codex exec <goal>`;
+  stdout 流式转发,最终输出解析为结果。
+- **copilot**(GitHub Copilot CLI)— `copilot -p <goal> --allow-all-tools`。
+- **antigravity**(Google)— `agy -p <goal>`,无头模式下工具按策略自动批准。
+- **kiro**(AWS Kiro CLI)— `kiro-cli chat --no-interactive --trust-all-tools <goal>`。
+- **trae-agent**(字节)— `trae-cli run <goal>`(开源 agent CLI;
+  `trae` IDE 启动器无法执行无头任务)。
+- **pi** — `pi -p <goal>`(print 模式),来自 `@mariozechner/pi-coding-agent`。
+- **hermes**(Nous Research)— `hermes chat -q <goal>`(单次查询模式)。
+- **qoder / zcode** — 尽力而为:官方尚无无头参数文档
+  (`qoder <goal>` / `zcode -p <goal>`),上游发布 print 模式后再跟进。
 - **mock** — 用于演示 / 测试的确定性假 runtime。
 
 ### 流式输出

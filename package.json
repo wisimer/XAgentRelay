@@ -12,7 +12,10 @@
     "clean": "tsc -b --clean",
     "relay": "node apps/relay-server/dist/index.js",
     "agent": "node apps/cli/dist/index.js",
-    "demo": "node scripts/demo.mjs"
+    "demo": "node scripts/demo.mjs",
+    "verify:cloud": "node scripts/verify-cloudflare.mjs",
+    "deploy:cloud": "npm run deploy -w @agent-relay/relay-worker",
+    "publish:cli": "npm run build && npm run bundle -w agentrelay && npm publish -w agentrelay"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

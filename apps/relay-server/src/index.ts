@@ -7,6 +7,7 @@ import {
   OFFLINE_AFTER_MS,
   isTerminal,
 } from "@agent-relay/protocol";
+import { StreamHub } from "@agent-relay/relay-core";
 import { buildApp } from "./api.js";
 import { AgentConnections } from "./connections.js";
 import { Store } from "./store.js";
@@ -17,7 +18,8 @@ const dataDir = process.env.RELAY_DATA_DIR ?? "data";
 
 const store = new Store(dataDir);
 const connections = new AgentConnections(store);
-const app = buildApp(store, connections);
+const streams = new StreamHub();
+const app = buildApp(store, connections, streams);
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`[relay] listening on http://127.0.0.1:${info.port} (dashboard at /)`);
@@ -27,7 +29,7 @@ const server = serve({ fetch: app.fetch, port }, (info) => {
 
 // Provider connections: providers dial out, so they work behind NAT.
 const wss = new WebSocketServer({ noServer: true });
-setupProviderSocket(wss, store, connections);
+setupProviderSocket(wss, store, connections, streams);
 
 (server as http.Server).on("upgrade", (req, socket, head) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
@@ -53,6 +55,8 @@ setInterval(() => {
       console.log(`[relay] task ${task.task_id} timed out`);
     }
   }
+  // backstop: close SSE subscribers of any task that reached a terminal state
+  streams.finishTerminal(store.listTasks({ limit: 10000 }));
   for (const agent of store.listAgents()) {
     if (agent.status === "offline") continue;
     const stale = !connections.has(agent.id) && (!agent.lastHeartbeat || now - agent.lastHeartbeat > OFFLINE_AFTER_MS);

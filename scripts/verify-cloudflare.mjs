@@ -39,7 +39,9 @@ function makeProvider(reg, label, hooks = {}) {
       conn.acceptTask(task.task_id);
       conn.startTask(task.task_id);
       const slow = task.goal.includes("[slow]");
+      conn.sendChunk(task.task_id, `[${label}] started: ${task.goal.slice(0, 40)}\n`);
       await sleep(slow ? 30_000 : 500);
+      if (!slow) conn.sendChunk(task.task_id, `[${label}] almost done…\n`);
       conn.sendResult(task.task_id, {
         status: "completed",
         result: {
@@ -78,15 +80,21 @@ async function main() {
   await conn.waitUntilOnline();
   check(true, `provider online over wss (${dim(reg.agent_id)})`);
 
-  // 2. delegate → result
+  // 2. delegate → result (with live streaming)
   console.log(bold("\nNormal delegation:"));
+  const chunks = [];
   const t1 = await delegate({
     goal: "verify the deployed relay",
     capabilities: ["verify"],
     baseUrl: BASE,
     consumerId: "cf-verify-consumer",
+    onChunk: (text) => chunks.push(text),
   });
   check(t1.status === "completed" && t1.providerId === reg.agent_id, `task completed — ${t1.result?.summary}`);
+  check(
+    chunks.join("").includes("started:"),
+    `live stream received over SSE (${chunks.length} chunks)`,
+  );
 
   // 3. consumer cancel → provider gets task_cancel
   console.log(bold("\nConsumer cancel:"));

@@ -18,27 +18,47 @@ Agent,并将远程 Agent 的结果重新注入当前 Agent 的上下文。
           Relay → B 的 Agent 继续推理 → 改代码 → 测试
 ```
 
-MVP 只验证核心闭环:**注册 → 上线 → 发现 → 委托 → 执行 → 返回**。
+MVP 只验证核心闭环:**注册 → 上线 → 发现 → 委托 → 执行 → 流式返回**。
 不做支付、不做 Marketplace、不做沙箱、不做远程改代码。
 
 ## 快速开始
+
+### 用 npm 安装(普通用户)
+
+```bash
+npm install -g agentrelay        # 提供 `agent-relay` 命令
+
+agent-relay init                 # 初始化,默认指向公共 Relay:https://agent.kreplay.com
+agent-relay register
+agent-relay serve                # 上线成为 Provider
+```
+
+另一个终端委托任务(结果会**流式**实时返回):
+
+```bash
+agent-relay delegate "分析这个 Redis 分布式锁问题" --cap redis,debugging
+```
+
+公共 Dashboard:https://agent.kreplay.com/
+
+### 从源码开发
 
 ```bash
 npm install
 npm run build
 
-# 一键验证端到端闭环(启动 relay + 两个 mock provider + 两次委托路由)
+# 一键验证端到端闭环(启动 relay + 两个 mock provider + 两次委托路由 + 流式断言)
 npm run demo
 ```
 
-### 本地双 Agent(文档中的 Phase 1)
+### 本地双 Agent(文档中的 Phase 1,自托管 Relay)
 
 ```bash
 # 终端 1:启动 relay(含 Dashboard,默认 :8787)
 npm run relay
 
-# 终端 2:Provider 上线
-node apps/cli/dist/index.js init          # 交互式;自动探测 claude/opencode/codex
+# 终端 2:Provider 上线(指向本地 relay)
+node apps/cli/dist/index.js init --relay-url http://127.0.0.1:8787
 node apps/cli/dist/index.js register
 node apps/cli/dist/index.js serve
 
@@ -83,15 +103,41 @@ node apps/cli/dist/index.js connect      # 在当前项目写入 .mcp.json + /de
 
 ```
 apps/
-├── relay-server/     Hono API + WebSocket(/agent)+ 能力匹配 + 超时巡检 + Dashboard
-└── cli/              agent-relay 命令行(含 MCP stdio server)
+├── relay-server/     自托管 Relay:Hono API + WebSocket(/agent)+ 超时巡检 + Dashboard
+├── relay-worker/     ☁️ 云端 Relay:Cloudflare Worker + Durable Object(同一份协议)
+└── cli/              agent-relay 命令行(含 MCP stdio server),发布为 npm 包 `agentrelay`
 
 packages/
 ├── protocol/         Task / Agent / WS 消息 / HTTP DTO(未来 Python SDK 也实现它)
-├── sdk/              RelayClient、delegate()、ProviderConnection
+├── relay-core/       两端 Relay 共用的纯逻辑:能力匹配、Dashboard、统计、SSE 流式分发
+├── sdk/              RelayClient、delegate()(SSE 流式)、ProviderConnection
 ├── agent-runtime/    Runtime 探测、Task→Prompt、沙箱化执行(claude/opencode/codex/mock)
 └── shared/           配置、身份、ID/Token 生成
 ```
+
+### 云端部署(公共 Relay)
+
+公共实例跑在 Cloudflare 上:**Worker** 只做路由,**单个全局 Durable Object**(SQLite
+存储)持有注册表、任务状态和所有 Provider WebSocket;Provider 断线 close 事件、
+任务超时巡检由 DO 的 `alarm()` 兜底。
+
+```bash
+cd apps/relay-worker
+npx wrangler login        # 一次性授权
+npx wrangler deploy       # 部署到 https://agent.kreplay.com(自定义域名)
+```
+
+> 注:`*.workers.dev` 在部分网络被 DNS 污染,所以绑定了自有域名
+> `agent.kreplay.com`(`wrangler.toml` 里的 `routes`)。换域名改那里再 deploy 即可。
+
+### 流式返回
+
+Provider 侧 runtime 的 stdout 增量(claude-code 用 `--output-format stream-json`
+按事件流解析;opencode/codex 透传 stdout;mock 分段输出)以 200ms 节流通过 WS
+`task_chunk` 上报 → Relay 累积进任务记录(尾部 64KB 封顶)并通过
+`GET /api/tasks/:id/stream`(SSE:`snapshot` → `chunk`* → `done`)转发 → Consumer 的
+`delegate({ onChunk })` 实时接收,CLI 同步打印。轮询仍是状态的唯一权威,流式只负责
+输出增量的实时性 —— 断流自动降级为一次性返回。
 
 ### 通信模型(文档 §16)
 
@@ -163,9 +209,11 @@ Consumer 进程被 `kill -9` 时来不及发 cancel,此时任务会在 Provider 
 | POST | `/api/agents/register` | 注册(返回 agent_id + token) |
 | GET | `/api/agents?capability=` | Agent 列表/发现 |
 | POST | `/api/tasks` | 创建委托(`x-consumer-id` 头标识消费方) |
-| GET | `/api/tasks/:id` | 轮询任务(含结果) |
-| GET | `/api/stats`、`/api/health` | 统计/健康 |
-| WS | `/agent` | Provider:register / heartbeat / task_update / task_result |
+| GET | `/api/tasks/:id` | 轮询任务(含结果与累积 stream) |
+| GET | `/api/tasks/:id/stream` | SSE 实时流:`snapshot` → `chunk`* → `done` |
+| POST | `/api/tasks/:id/cancel` | Consumer 取消,relay 推送 `task_cancel` 给 Provider |
+| GET | `/api/stats`、`/api/health` | 统计(含 agents.available)/健康 |
+| WS | `/agent` | Provider:register / heartbeat / task_update / **task_chunk** / task_result |
 
 ## 安全模型(文档 §21/22)
 
@@ -186,9 +234,10 @@ Consumer 进程被 `kill -9` 时来不及发 cancel,此时任务会在 Provider 
 
 - ✅ Phase 1 本地双 Agent(协议闭环)— `npm run demo`
 - ✅ Phase 3 接入 Claude Code / OpenCode — `agent-relay connect`(MCP Tool + /delegate)
-- 🔲 Phase 2 公网 Relay(HTTPS/域名 + PostgreSQL 替换 JSON 存储)
+- ✅ Phase 2 公网 Relay — Cloudflare Worker + Durable Object,`https://agent.kreplay.com`
+- ✅ 流式结果返回 — `task_chunk` + SSE,`delegate({ onChunk })`
 - 🔲 Phase 4 Discovery 进阶(latency/success_rate 加权)
-- 🔲 Phase 5 开放 Provider(`npx agent-relay register && npx agent-relay serve`)
+- 🔲 Phase 5 开放 Provider(`npm i -g agentrelay && agent-relay register && agent-relay serve`)
 
 ### 刻意砍掉(Phase 2+ 再说)
 
@@ -199,9 +248,10 @@ Multi-Agent Swarm、自动任务拆解、AI 对 AI 协商。
 
 | 文档建议 | 实现选择 | 原因 |
 |---|---|---|
-| PostgreSQL + Prisma + Redis/BullMQ | JSON 文件存储 + 内存调度 | Phase 1 只需证明闭环,零外部依赖即可跑;`store.ts` 已隔离,Phase 2 平替 |
+| PostgreSQL + Prisma + Redis/BullMQ | 本地 JSON 文件;云端 Durable Object SQLite 存储 | 零依赖即可跑;云端用 DO 原生存储免运维,接口一致可平替 |
 | Next.js Dashboard | Relay 内置单页 Dashboard | MVP 的"极简后台",不引入第二个前端工程 |
 | MCP 官方 SDK | 手写 stdio JSON-RPC | 只需 initialize/tools/list/tools/call,零依赖更稳 |
+| 自建公网服务器 | Cloudflare Worker + Durable Object | 免费额度、全球边缘、WebSocket Hibernation 天然适合长连接注册表 |
 
 ## 开发
 

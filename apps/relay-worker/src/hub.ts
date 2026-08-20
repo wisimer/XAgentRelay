@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   DEFAULT_TASK_TIMEOUT_S,
+  MAX_STREAM_CHARS,
   OFFLINE_AFTER_MS,
   isTerminal,
   normalizeCapabilities,
@@ -13,6 +14,7 @@ import {
   type TaskRecord,
   type TaskStatus,
 } from "@agent-relay/protocol";
+import { StreamHub } from "@agent-relay/relay-core";
 import type { Hono } from "hono";
 import { buildRoutes } from "./routes";
 import { newId, newToken } from "./ids";
@@ -37,6 +39,8 @@ export class RelayHub extends DurableObject<Env> {
   private agents = new Map<string, AgentRecord>();
   private tasks = new Map<string, TaskRecord>();
   private sockets = new Map<string, WebSocket>();
+  /** Live SSE subscribers per task, fanned out from provider task_chunk. */
+  readonly streams = new StreamHub();
   private app: Hono | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -169,6 +173,14 @@ export class RelayHub extends DurableObject<Env> {
     this.updateTask(id, { status });
   }
 
+  /** Append a live-output chunk, keeping only the most recent tail. */
+  appendStream(id: string, chunk: string): void {
+    const task = this.tasks.get(id);
+    if (!task) return;
+    task.stream = ((task.stream ?? "") + chunk).slice(-MAX_STREAM_CHARS);
+    this.putTask(task);
+  }
+
   listTasks(filter: { consumer?: string; provider?: string; limit?: number } = {}): TaskRecord[] {
     let tasks = [...this.tasks.values()].sort((a, b) => b.createdAt - a.createdAt);
     if (filter.consumer) tasks = tasks.filter((t) => t.consumerId === filter.consumer);
@@ -299,6 +311,14 @@ export class RelayHub extends DurableObject<Env> {
         }
         break;
       }
+      case "task_chunk": {
+        if (!agentId) return;
+        const task = this.tasks.get(msg.task_id);
+        if (!task || task.providerId !== agentId || isTerminal(task.status)) return;
+        this.appendStream(msg.task_id, msg.chunk);
+        this.streams.publish(msg.task_id, msg.chunk);
+        break;
+      }
       case "task_result": {
         if (!agentId) return;
         const task = this.tasks.get(msg.task_id);
@@ -307,7 +327,7 @@ export class RelayHub extends DurableObject<Env> {
         const now = Date.now();
         const started = task.startedAt ?? task.createdAt;
         const latency = now > started ? now - started : 0;
-        this.updateTask(msg.task_id, {
+        const updated = this.updateTask(msg.task_id, {
           status: msg.status,
           result: msg.result ?? null,
           usage: msg.usage ?? null,
@@ -316,6 +336,7 @@ export class RelayHub extends DurableObject<Env> {
         });
         this.recordOutcome(agentId, msg.status === "completed", latency);
         this.setAgentStatus(agentId, "online");
+        if (updated) this.streams.finish(msg.task_id, updated);
         break;
       }
     }
@@ -353,12 +374,13 @@ export class RelayHub extends DurableObject<Env> {
     const now = Date.now();
     for (const task of this.listTasks({ provider: agentId, limit: 1000 })) {
       if (isTerminal(task.status)) continue;
-      this.updateTask(task.task_id, {
+      const updated = this.updateTask(task.task_id, {
         status: "failed",
         error: "provider disconnected",
         completedAt: now,
       });
       this.recordOutcome(agentId, false, now - (task.startedAt ?? task.createdAt));
+      if (updated) this.streams.finish(task.task_id, updated);
     }
   }
 
@@ -397,6 +419,8 @@ export class RelayHub extends DurableObject<Env> {
         (!agent.lastHeartbeat || now - agent.lastHeartbeat > OFFLINE_AFTER_MS);
       if (stale) this.setAgentStatus(agent.id, "offline");
     }
+    // backstop: close SSE subscribers of any task that reached a terminal state
+    this.streams.finishTerminal(this.listTasks({ limit: 10000 }));
     await this.ctx.storage.setAlarm(Date.now() + SWEEP_MS);
   }
 }

@@ -64,6 +64,7 @@ export async function runDelegate(goal: string[], opts: DelegateOptions): Promis
   process.once("SIGINT", () => void onInterrupt("SIGINT"));
   process.once("SIGTERM", () => void onInterrupt("SIGTERM"));
 
+  let streamStarted = false;
   try {
     const task = await delegate({
       goal: goal.join(" "),
@@ -87,10 +88,18 @@ export async function runDelegate(goal: string[], opts: DelegateOptions): Promis
           );
           console.log(dim(`  task ${ev.task_id} — running, this can take a while`));
         } else if (ev.type === "status") {
-          console.log(dim(`  status: ${ev.status}`));
+          if (!streamStarted) console.log(dim(`  status: ${ev.status}`));
         }
       },
+      onChunk: (text) => {
+        if (!streamStarted) {
+          streamStarted = true;
+          console.log(dim("\n  ── live output ──"));
+        }
+        process.stdout.write(dim(text));
+      },
     });
+    if (streamStarted) process.stdout.write("\n");
 
     const r = task.result!;
     console.log("");

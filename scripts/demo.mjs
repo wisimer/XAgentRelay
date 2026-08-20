@@ -57,7 +57,10 @@ function makeProvider(reg, label) {
       conn.acceptTask(task.task_id);
       await sleep(300);
       conn.startTask(task.task_id);
+      conn.sendChunk(task.task_id, `[${label}] thinking about: ${task.goal.slice(0, 40)}\n`);
       await sleep(400);
+      conn.sendChunk(task.task_id, `[${label}] drafting analysis…\n`);
+      await sleep(200);
       conn.sendResult(task.task_id, {
         status: "completed",
         result: {
@@ -104,6 +107,7 @@ async function main() {
 
   // 3. Delegate a rust task — must route to Rust Expert
   console.log(bold("Delegation 1:"), 'delegate("分析 Rust Tokio deadlock", caps=[rust, tokio, debugging])');
+  const chunks1 = [];
   const t1 = await delegate({
     goal: "分析 Rust Tokio deadlock",
     capabilities: ["rust", "tokio", "debugging"],
@@ -113,8 +117,16 @@ async function main() {
       if (ev.type === "dispatched" && ev.provider) console.log(`  → matched ${bold(ev.provider.name)} ${dim(ev.task_id)}`);
       if (ev.type === "status") process.stdout.write(dim(`  · ${ev.status} `) + "\r");
     },
+    onChunk: (text) => chunks1.push(text),
   });
   console.log(`  ${t1.providerId === regA.agent_id ? ok("✓ routed to Rust Expert") : bad("✗ wrong provider")} — ${t1.result.summary}`);
+  const streamed1 = chunks1.join("");
+  console.log(
+    streamed1.includes("Rust Expert")
+      ? `  ${ok("✓ streamed live output")} ${dim(`(${chunks1.length} chunks via SSE)`)}`
+      : `  ${bad("✗ no stream chunks received")}`,
+  );
+  if (!streamed1.includes("Rust Expert")) failures++;
 
   // 4. Delegate a react task — must route to React Expert
   console.log(bold("\nDelegation 2:"), 'delegate("Review this React component", caps=[typescript, react])');

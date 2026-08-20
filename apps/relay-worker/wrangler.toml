@@ -3,6 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2025-06-01"
 workers_dev = true
 
+# workers.dev is DNS-poisoned in some networks; the custom domain on the
+# account's own zone resolves to real Cloudflare edge IPs.
+routes = [{ pattern = "agent.kreplay.com", custom_domain = true }]
+
 [durable_objects]
 bindings = [{ name = "RELAY_HUB", class_name = "RelayHub" }]
 

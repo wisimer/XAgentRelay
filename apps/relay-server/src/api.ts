@@ -9,11 +9,11 @@ import {
   type CreateTaskRequest,
 } from "@agent-relay/protocol";
 import { newId } from "@agent-relay/shared";
-import { computeStats, dashboardHtml, selectAgent } from "@agent-relay/relay-core";
+import { computeStats, dashboardHtml, selectAgent, taskStreamResponse, type StreamHub } from "@agent-relay/relay-core";
 import type { AgentConnections } from "./connections.js";
 import type { Store } from "./store.js";
 
-export function buildApp(store: Store, connections: AgentConnections): Hono {
+export function buildApp(store: Store, connections: AgentConnections, streams: StreamHub): Hono {
   const app = new Hono();
   const startedAt = Date.now();
 
@@ -114,7 +114,8 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
       },
     });
     if (!sent) {
-      store.updateTask(task.task_id, { status: "failed", error: "provider disconnected", completedAt: Date.now() });
+      const failed = store.updateTask(task.task_id, { status: "failed", error: "provider disconnected", completedAt: Date.now() });
+      if (failed) streams.finish(task.task_id, failed);
       return c.json({ error: "provider disconnected during dispatch", code: "dispatch_failed" }, 502);
     }
 
@@ -134,11 +135,20 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
         provider: c.req.query("provider") ?? undefined,
         limit: Number(c.req.query("limit") ?? 100),
       })
-      .map((t) => ({
-        ...t,
-        provider: t.providerId ? (toPublicAgent(store.getAgent(t.providerId)!) ?? null) : null,
-      }));
+      .map((t) => {
+        const agent = t.providerId ? store.getAgent(t.providerId) : undefined;
+        // stream text is bulky and only useful on detail/stream endpoints
+        const { stream, ...rest } = t;
+        return { ...rest, provider: agent ? toPublicAgent(agent) : null };
+      });
     return c.json({ tasks });
+  });
+
+  /** SSE live stream of a task's output (snapshot → chunk* → done). */
+  app.get("/api/tasks/:id/stream", (c) => {
+    const task = store.getTask(c.req.param("id"));
+    if (!task) return c.json({ error: "task not found" }, 404);
+    return taskStreamResponse(task, streams);
   });
 
   app.get("/api/tasks/:id", (c) => {
@@ -157,11 +167,12 @@ export function buildApp(store: Store, connections: AgentConnections): Hono {
     if (isTerminal(task.status)) {
       return c.json({ error: `task already ${task.status}` }, 409);
     }
-    store.updateTask(task.task_id, {
+    const updated = store.updateTask(task.task_id, {
       status: "cancelled",
       error: "cancelled by consumer",
       completedAt: Date.now(),
     });
+    if (updated) streams.finish(task.task_id, updated);
     if (task.providerId) {
       connections.send(task.providerId, { type: "task_cancel", task_id: task.task_id });
       store.setAgentStatus(

@@ -5,10 +5,10 @@
 
 export const PROTOCOL_VERSION = "1.0.0";
 
-/** Default relay endpoint used when nothing else is configured. */
+/** Default relay endpoint: the public Agent Relay network on Cloudflare. */
 export const DEFAULT_RELAY_URL =
   (typeof process !== "undefined" ? process.env?.AGENT_RELAY_URL : undefined) ??
-  "http://127.0.0.1:8787";
+  "https://agent.kreplay.com";
 
 export const HEARTBEAT_MS = 30_000;
 export const OFFLINE_AFTER_MS = 90_000;
@@ -161,7 +161,12 @@ export interface TaskRecord extends TaskEnvelope {
   error: string | null;
   result: TaskResultPayload | null;
   usage: TaskUsage | null;
+  /** Accumulated live output streamed by the provider (tail-capped). */
+  stream?: string;
 }
+
+/** Cap on accumulated stream text kept per task (most recent wins). */
+export const MAX_STREAM_CHARS = 64_000;
 
 /** TaskRecord with the provider's public info embedded (list/detail APIs). */
 export interface TaskWithProvider extends TaskRecord {
@@ -175,6 +180,7 @@ export type ProviderMessage =
   | { type: "register"; agent_id: string; token: string }
   | { type: "heartbeat" }
   | { type: "task_update"; task_id: string; status: "accepted" | "running" }
+  | { type: "task_chunk"; task_id: string; chunk: string }
   | {
       type: "task_result";
       task_id: string;

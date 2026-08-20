@@ -14,7 +14,7 @@ import {
   type TaskRecord,
   type TaskStatus,
 } from "@agent-relay/protocol";
-import { computeStats, dashboardHtml, selectAgent } from "@agent-relay/relay-core";
+import { computeStats, dashboardHtml, selectAgent, taskStreamResponse, type StreamHub } from "@agent-relay/relay-core";
 import { newId } from "./ids";
 
 /**
@@ -34,6 +34,7 @@ export interface RelayBackend {
   listTasks(filter?: { consumer?: string; provider?: string; limit?: number }): TaskRecord[];
   hasConnection(agentId: string): boolean;
   sendToAgent(agentId: string, msg: RelayMessage): boolean;
+  readonly streams: StreamHub;
 }
 
 /** HTTP API — a straight port of the node server's routes (api.ts). */
@@ -138,7 +139,8 @@ export function buildRoutes(backend: RelayBackend): Hono {
       },
     });
     if (!sent) {
-      backend.updateTask(task.task_id, { status: "failed", error: "provider disconnected", completedAt: Date.now() });
+      const failed = backend.updateTask(task.task_id, { status: "failed", error: "provider disconnected", completedAt: Date.now() });
+      if (failed) backend.streams.finish(task.task_id, failed);
       return c.json({ error: "provider disconnected during dispatch", code: "dispatch_failed" }, 502);
     }
 
@@ -160,9 +162,18 @@ export function buildRoutes(backend: RelayBackend): Hono {
       })
       .map((t) => {
         const provider = t.providerId ? backend.getAgent(t.providerId) : undefined;
-        return { ...t, provider: provider ? toPublicAgent(provider) : null };
+        // stream text is bulky and only useful on detail/stream endpoints
+        const { stream, ...rest } = t;
+        return { ...rest, provider: provider ? toPublicAgent(provider) : null };
       });
     return c.json({ tasks });
+  });
+
+  /** SSE live stream of a task's output (snapshot → chunk* → done). */
+  app.get("/api/tasks/:id/stream", (c) => {
+    const task = backend.getTask(c.req.param("id"));
+    if (!task) return c.json({ error: "task not found" }, 404);
+    return taskStreamResponse(task, backend.streams);
   });
 
   app.get("/api/tasks/:id", (c) => {
@@ -181,11 +192,12 @@ export function buildRoutes(backend: RelayBackend): Hono {
     if (isTerminal(task.status)) {
       return c.json({ error: `task already ${task.status}` }, 409);
     }
-    backend.updateTask(task.task_id, {
+    const updated = backend.updateTask(task.task_id, {
       status: "cancelled",
       error: "cancelled by consumer",
       completedAt: Date.now(),
     });
+    if (updated) backend.streams.finish(task.task_id, updated);
     if (task.providerId) {
       backend.sendToAgent(task.providerId, { type: "task_cancel", task_id: task.task_id });
       backend.setAgentStatus(

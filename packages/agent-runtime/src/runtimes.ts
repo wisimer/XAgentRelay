@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import {
   DEFAULT_TASK_TIMEOUT_S,
   type TaskEnvelope,
@@ -19,6 +20,8 @@ export interface RunOutcome {
 export interface RunOptions {
   /** Abort to kill the underlying runtime process (task cancelled upstream). */
   signal?: AbortSignal;
+  /** Live stdout deltas as the runtime produces them (best-effort). */
+  onChunk?: (text: string) => void;
 }
 
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
@@ -35,7 +38,7 @@ const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 function runCli(
   bin: string,
   args: string[],
-  opts: { cwd: string; timeoutMs: number; signal?: AbortSignal },
+  opts: { cwd: string; timeoutMs: number; signal?: AbortSignal; onChunk?: (text: string) => void },
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolveP, reject) => {
     const child = spawn(bin, args, { cwd: opts.cwd, stdio: ["pipe", "pipe", "pipe"] });
@@ -44,6 +47,7 @@ function runCli(
     let stdout = "";
     let stderr = "";
     let settled = false;
+    const decoder = new StringDecoder("utf8");
     const killTimer = setTimeout(() => {
       if (settled) return;
       settled = true;
@@ -71,8 +75,17 @@ function runCli(
     }
 
     const onData = (which: "stdout" | "stderr") => (chunk: Buffer) => {
-      if (which === "stdout") stdout += chunk;
-      else stderr += chunk;
+      if (which === "stdout") {
+        stdout += chunk;
+        const text = decoder.write(chunk);
+        if (text && opts.onChunk) {
+          try {
+            opts.onChunk(text);
+          } catch {
+            /* consumer-side chunk handling must never kill the run */
+          }
+        }
+      } else stderr += chunk;
       if (!settled && stdout.length + stderr.length > MAX_OUTPUT_BYTES) {
         settled = true;
         clearTimeout(killTimer);
@@ -119,7 +132,7 @@ export async function runTask(
   runtime: string,
   opts: RunOptions = {},
 ): Promise<RunOutcome> {
-  if (runtime === "mock") return mockRun(task, opts.signal);
+  if (runtime === "mock") return mockRun(task, opts.signal, opts.onChunk);
 
   const prompt = buildTaskPrompt(task);
   const dir = mkdtempSync(join(tmpdir(), "agent-relay-task-"));
@@ -133,18 +146,48 @@ export async function runTask(
     const timeoutMs = (task.requirements?.timeout ?? DEFAULT_TASK_TIMEOUT_S) * 1000;
 
     if (runtime === "claude-code") {
-      const { stdout } = await runCli("claude", ["-p", prompt, "--output-format", "json"], {
-        cwd: dir,
-        timeoutMs,
-        signal: opts.signal,
-      });
-      return parseClaudeOutput(stdout);
+      // stream-json emits one NDJSON event per turn so consumers see progress
+      // as it happens; the final {"type":"result"} line carries result+usage.
+      const lines: ClaudeStreamEvent[] = [];
+      let pending = "";
+      const onEvent = (text: string) => {
+        pending += text;
+        let idx;
+        while ((idx = pending.indexOf("\n")) >= 0) {
+          const line = pending.slice(0, idx).trim();
+          pending = pending.slice(idx + 1);
+          if (!line) continue;
+          try {
+            const ev = JSON.parse(line) as ClaudeStreamEvent;
+            lines.push(ev);
+            const chunk = claudeEventChunk(ev);
+            if (chunk) opts.onChunk?.(chunk);
+          } catch {
+            /* partial / non-JSON line — ignore */
+          }
+        }
+      };
+      const { stdout } = await runCli(
+        "claude",
+        ["-p", prompt, "--output-format", "stream-json", "--verbose"],
+        { cwd: dir, timeoutMs, signal: opts.signal, onChunk: onEvent },
+      );
+      const tail = pending.trim();
+      if (tail) {
+        try {
+          lines.push(JSON.parse(tail) as ClaudeStreamEvent);
+        } catch {
+          /* ignore */
+        }
+      }
+      return parseClaudeStream(lines, stdout, task.goal);
     }
     if (runtime === "opencode") {
       const { stdout } = await runCli("opencode", ["run", prompt], {
         cwd: dir,
         timeoutMs,
         signal: opts.signal,
+        onChunk: opts.onChunk,
       });
       return textRunOutcome(stdout, task.goal);
     }
@@ -153,6 +196,7 @@ export async function runTask(
         cwd: dir,
         timeoutMs,
         signal: opts.signal,
+        onChunk: opts.onChunk,
       });
       return textRunOutcome(stdout, task.goal);
     }
@@ -168,25 +212,48 @@ function safeJoin(dir: string, relPath: string): string | null {
   return abs.startsWith(dir) ? abs : null;
 }
 
-interface ClaudeJson {
+/* ------------------------------------------------- claude stream-json events */
+
+interface ClaudeStreamEvent {
+  type?: string;
+  message?: { content?: Array<{ type?: string; text?: string; name?: string; input?: unknown }> };
   result?: string;
+  is_error?: boolean;
   usage?: { input_tokens?: number; output_tokens?: number };
 }
 
-function parseClaudeOutput(stdout: string): RunOutcome {
-  try {
-    const parsed = JSON.parse(stdout) as ClaudeJson;
-    const text = parsed.result ?? stdout;
-    const usage: TaskUsage | undefined = parsed.usage
+/** Render one stream-json event as a human-readable live chunk (or null). */
+function claudeEventChunk(ev: ClaudeStreamEvent): string | null {
+  if (ev.type !== "assistant") return null;
+  const parts: string[] = [];
+  for (const block of ev.message?.content ?? []) {
+    if (block.type === "text" && block.text) parts.push(block.text + "\n");
+    else if (block.type === "tool_use" && block.name) {
+      const input = block.input ? JSON.stringify(block.input).slice(0, 120) : "";
+      parts.push(`\n[tool: ${block.name}] ${input}\n`);
+    }
+  }
+  return parts.length ? parts.join("") : null;
+}
+
+function parseClaudeStream(
+  events: ClaudeStreamEvent[],
+  stdout: string,
+  goal: string,
+): RunOutcome {
+  const resultEvent = [...events].reverse().find((e) => e.type === "result");
+  if (resultEvent) {
+    const text = resultEvent.result ?? "";
+    const usage: TaskUsage | undefined = resultEvent.usage
       ? {
-          input_tokens: parsed.usage.input_tokens,
-          output_tokens: parsed.usage.output_tokens,
+          input_tokens: resultEvent.usage.input_tokens,
+          output_tokens: resultEvent.usage.output_tokens,
         }
       : undefined;
-    return { result: textRunOutcome(text, "").result, usage, raw: text };
-  } catch {
-    return textRunOutcome(stdout, "");
+    return { result: textRunOutcome(text, goal).result, usage, raw: text };
   }
+  // Fallback: no parseable result event — treat raw stdout as the answer.
+  return textRunOutcome(stdout, goal);
 }
 
 function textRunOutcome(text: string, goal: string): RunOutcome {
@@ -195,10 +262,24 @@ function textRunOutcome(text: string, goal: string): RunOutcome {
   return { result: { summary, output: trimmed }, raw: trimmed };
 }
 
-async function mockRun(task: TaskEnvelope, signal?: AbortSignal): Promise<RunOutcome> {
+async function mockRun(
+  task: TaskEnvelope,
+  signal?: AbortSignal,
+  onChunk?: (text: string) => void,
+): Promise<RunOutcome> {
   const delayMs = Number(process.env.AGENT_RELAY_MOCK_DELAY_MS ?? 400);
-  await interruptibleSleep(delayMs, signal);
   const caps = task.capabilities.join(", ") || "general";
+  // Stream a few progress beats over the mock delay so consumers see liveness.
+  const beats = [
+    `[mock:${caps}] received task, reading context…\n`,
+    `[mock:${caps}] analyzing goal: ${task.goal.slice(0, 60)}\n`,
+    `[mock:${caps}] forming recommendation…\n`,
+  ];
+  for (const beat of beats) {
+    onChunk?.(beat);
+    await interruptibleSleep(delayMs / (beats.length + 1), signal);
+  }
+  await interruptibleSleep(delayMs / (beats.length + 1), signal);
   return {
     result: {
       summary: `[mock:${caps}] Analysis complete for: ${task.goal}`,

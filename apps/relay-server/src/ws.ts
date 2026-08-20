@@ -1,17 +1,19 @@
 import type { WebSocket, WebSocketServer } from "ws";
 import { isTerminal, type ProviderMessage } from "@agent-relay/protocol";
+import type { StreamHub } from "@agent-relay/relay-core";
 import type { AgentConnections } from "./connections.js";
 import { parseMessage } from "./connections.js";
 import type { Store } from "./store.js";
 
 /**
  * Provider WebSocket endpoint (wss://relay/agent).
- * register → heartbeat → task_update → task_result.
+ * register → heartbeat → task_update → task_chunk → task_result.
  */
 export function setupProviderSocket(
   wss: WebSocketServer,
   store: Store,
   connections: AgentConnections,
+  streams: StreamHub,
 ): void {
   wss.on("connection", (ws: WebSocket) => {
     let agentId: string | null = null;
@@ -48,6 +50,14 @@ export function setupProviderSocket(
           }
           break;
         }
+        case "task_chunk": {
+          if (!agentId) return;
+          const task = store.getTask(msg.task_id);
+          if (!task || task.providerId !== agentId || isTerminal(task.status)) return;
+          store.appendStream(msg.task_id, msg.chunk);
+          streams.publish(msg.task_id, msg.chunk);
+          break;
+        }
         case "task_result": {
           if (!agentId) return;
           const task = store.getTask(msg.task_id);
@@ -57,7 +67,7 @@ export function setupProviderSocket(
           const latency = (task.startedAt ?? task.createdAt) && now > (task.startedAt ?? task.createdAt)
             ? now - (task.startedAt ?? task.createdAt)
             : 0;
-          store.updateTask(msg.task_id, {
+          const updated = store.updateTask(msg.task_id, {
             status: msg.status,
             result: msg.result ?? null,
             usage: msg.usage ?? null,
@@ -66,6 +76,7 @@ export function setupProviderSocket(
           });
           store.recordOutcome(agentId, msg.status === "completed", latency);
           store.setAgentStatus(agentId, "online");
+          if (updated) streams.finish(msg.task_id, updated);
           break;
         }
       }
@@ -80,12 +91,13 @@ export function setupProviderSocket(
       const now = Date.now();
       for (const task of store.listTasks({ provider: agentId, limit: 1000 })) {
         if (isTerminal(task.status)) continue;
-        store.updateTask(task.task_id, {
+        const updated = store.updateTask(task.task_id, {
           status: "failed",
           error: "provider disconnected",
           completedAt: now,
         });
         store.recordOutcome(agentId, false, now - (task.startedAt ?? task.createdAt));
+        if (updated) streams.finish(task.task_id, updated);
       }
     });
   });

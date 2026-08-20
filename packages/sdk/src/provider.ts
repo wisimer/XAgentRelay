@@ -78,6 +78,11 @@ export class ProviderConnection {
     this.send({ type: "task_update", task_id: taskId, status: "running" });
   }
 
+  /** Stream a live output delta for a running task (throttled by the caller). */
+  sendChunk(taskId: string, chunk: string): void {
+    this.send({ type: "task_chunk", task_id: taskId, chunk });
+  }
+
   sendResult(
     taskId: string,
     payload: {

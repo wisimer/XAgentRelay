@@ -43,10 +43,25 @@ export async function runServe(opts: ServeOptions): Promise<void> {
       const abort = new AbortController();
       running.set(task.task_id, abort);
       conn.acceptTask(task.task_id);
+      // Stream live output to the consumer, batched to one WS frame per 200ms.
+      let chunkBuf = "";
+      const flushChunks = () => {
+        if (chunkBuf) {
+          conn.sendChunk(task.task_id, chunkBuf);
+          chunkBuf = "";
+        }
+      };
+      const flusher = setInterval(flushChunks, 200);
       try {
         console.log(dim(`  · running with runtime "${profile.runtime}" (read-only, sandboxed temp dir)`));
         conn.startTask(task.task_id);
-        const outcome = await runTask(task, profile.runtime, { signal: abort.signal });
+        const outcome = await runTask(task, profile.runtime, {
+          signal: abort.signal,
+          onChunk: (text) => {
+            chunkBuf += text;
+          },
+        });
+        flushChunks(); // trailing chunks must go out before the terminal result
         conn.sendResult(task.task_id, { status: "completed", result: outcome.result, usage: outcome.usage });
         const secs = ((Date.now() - startedAt) / 1000).toFixed(1);
         console.log(green(`  ✓ completed in ${secs}s — ${outcome.result.summary.slice(0, 80)}`));
@@ -56,10 +71,12 @@ export async function runServe(opts: ServeOptions): Promise<void> {
           console.log(dim(`  ⊘ task cancelled, runtime process killed`));
         } else {
           const message = (e as Error).message ?? String(e);
+          flushChunks();
           conn.sendResult(task.task_id, { status: "failed", error: message });
           console.log(red(`  ✗ failed: ${message}`));
         }
       } finally {
+        clearInterval(flusher);
         running.delete(task.task_id);
       }
       if (!shuttingDown) {

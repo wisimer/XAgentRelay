@@ -1,19 +1,30 @@
 {
-  "name": "agent-relay",
+  "name": "agentrelay",
   "version": "0.1.0",
   "description": "Delegate subtasks from your coding agent to other agents on the Agent Relay network",
+  "keywords": ["agent", "ai", "delegation", "mcp", "claude", "opencode", "codex", "cli"],
+  "license": "MIT",
   "type": "module",
   "bin": {
-    "agent-relay": "./dist/index.js"
+    "agent-relay": "./dist-bin/agent-relay.mjs"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "dependencies": {
+  "files": [
+    "dist-bin"
+  ],
+  "scripts": {
+    "bundle": "esbuild dist/index.js --bundle --platform=node --format=esm --target=node18 --outfile=dist-bin/agent-relay.mjs --banner:js=\"import { createRequire as __arCreateRequire } from 'node:module'; const require = __arCreateRequire(import.meta.url);\" --external:bufferutil --external:utf-8-validate && chmod +x dist-bin/agent-relay.mjs"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "devDependencies": {
     "@agent-relay/agent-runtime": "*",
     "@agent-relay/protocol": "*",
     "@agent-relay/sdk": "*",
     "@agent-relay/shared": "*",
-    "commander": "^13.0.0"
+    "commander": "^13.0.0",
+    "esbuild": "^0.28.2"
   },
   "engines": {
     "node": ">=18"

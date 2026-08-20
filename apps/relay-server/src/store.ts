@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import {
+  MAX_STREAM_CHARS,
   normalizeCapabilities,
   type AgentRecord,
   type AgentRegistration,
@@ -130,6 +131,14 @@ export class Store {
 
   setTaskStatus(id: string, status: TaskStatus): void {
     this.updateTask(id, { status });
+  }
+
+  /** Append a live-output chunk, keeping only the most recent tail. */
+  appendStream(id: string, chunk: string): void {
+    const task = this.tasks.get(id);
+    if (!task) return;
+    task.stream = ((task.stream ?? "") + chunk).slice(-MAX_STREAM_CHARS);
+    this.persist();
   }
 
   listTasks(filter: { consumer?: string; provider?: string; limit?: number } = {}): TaskRecord[] {

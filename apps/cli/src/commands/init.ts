@@ -47,7 +47,7 @@ export async function runInit(opts: InitOptions): Promise<void> {
   const capsRaw = opts.caps ?? (await ask("Capabilities (comma separated):", "coding"));
   const capabilities = capsRaw.split(",").map((c) => c.trim().toLowerCase()).filter(Boolean);
 
-  const relayUrl = opts.relay ?? (await ask("Relay server URL:", readConfig()?.relay ?? "http://127.0.0.1:8787"));
+  const relayUrl = opts.relay ?? (await ask("Relay server URL:", readConfig()?.relay ?? "https://agent.kreplay.com"));
 
   writeConfig({ ...(readConfig() ?? {}), relay: relayUrl.replace(/\/$/, "") });
   writeAgentProfile({ name: agentName, runtime, capabilities } satisfies AgentProfile);

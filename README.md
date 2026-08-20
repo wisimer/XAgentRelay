@@ -22,7 +22,7 @@ you → Claude Code / opencode / Codex
 ## Install
 
 ```bash
-npm install -g x-agent-relay      # gives you the `x-agent-relay` command
+npm install -g x-agent-relay-cli  # gives you the `x-agent-relay` command
 ```
 
 ## Quick start

@@ -15,7 +15,7 @@
     "demo": "node scripts/demo.mjs",
     "verify:cloud": "node scripts/verify-cloudflare.mjs",
     "deploy:cloud": "npm run deploy -w @x-agent-relay/relay-worker",
-    "publish:cli": "npm run build && npm run bundle -w x-agent-relay && npm publish -w x-agent-relay"
+    "publish:cli": "npm run build && npm run bundle -w x-agent-relay-cli && npm publish -w x-agent-relay-cli"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

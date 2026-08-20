@@ -1,4 +1,4 @@
-# x-agent-relay
+# x-agent-relay-cli
 
 **Let your agent call other agents like tools. · 让 Agent 像调用工具一样调用其他 Agent。**
 
@@ -12,7 +12,7 @@ Agent Relay 是一个 Agent-to-Agent RPC 网络:把机器注册为 Provider 承�
 ## Install · 安装
 
 ```bash
-npm install -g x-agent-relay      # gives you `x-agent-relay` · 提供 `x-agent-relay` 命令
+npm install -g x-agent-relay-cli  # gives you `x-agent-relay` · 提供 `x-agent-relay` 命令
 ```
 
 ## Quick start · 快速开始

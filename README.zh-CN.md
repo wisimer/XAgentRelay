@@ -21,7 +21,7 @@ Agent。内置能力匹配、**流式结果返回**和双向中断传播。公�
 ## 安装
 
 ```bash
-npm install -g x-agent-relay      # 提供 `x-agent-relay` 命令
+npm install -g x-agent-relay-cli  # 提供 `x-agent-relay` 命令
 ```
 
 ## 快速开始

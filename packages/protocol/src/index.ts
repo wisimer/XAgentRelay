@@ -7,7 +7,7 @@ export const PROTOCOL_VERSION = "1.0.0";
 
 /** Default relay endpoint: the public Agent Relay network on Cloudflare. */
 export const DEFAULT_RELAY_URL =
-  (typeof process !== "undefined" ? process.env?.AGENT_RELAY_URL : undefined) ??
+  (typeof process !== "undefined" ? process.env?.AGENT_RELAY_URL?.trim() : undefined) ||
   "https://agent.kreplay.com";
 
 export const HEARTBEAT_MS = 30_000;

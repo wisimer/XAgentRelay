@@ -33,7 +33,7 @@ Two relay implementations share the same business logic via `@x-agent-relay/rela
 | `packages/agent-runtime` | `@x-agent-relay/agent-runtime` | Runs `claude-code` / `opencode` / `codex` / `mock` CLIs, streams stdout |
 | `packages/relay-core` | `@x-agent-relay/relay-core` | Shared relay logic: matcher, dashboard, stats, SSE stream hub |
 | `packages/shared` | `@x-agent-relay/shared` | Config/identity files under `~/.x-agent-relay/` |
-| `apps/cli` | `x-agent-relay` (npm) | The `x-agent-relay` command |
+| `apps/cli` | `x-agent-relay-cli` (npm) | The `x-agent-relay` command |
 | `apps/relay-server` | — | Self-hosted Node relay |
 | `apps/relay-worker` | — | Cloudflare Worker + Durable Object relay |
 
@@ -160,7 +160,7 @@ Agent Relay 有三个角色:
 | `packages/agent-runtime` | `@x-agent-relay/agent-runtime` | 运行 `claude-code` / `opencode` / `codex` / `mock` CLI,流式读取 stdout |
 | `packages/relay-core` | `@x-agent-relay/relay-core` | Relay 共享逻辑:匹配器、Dashboard、统计、SSE 流中心 |
 | `packages/shared` | `@x-agent-relay/shared` | `~/.x-agent-relay/` 下的配置 / 身份文件 |
-| `apps/cli` | `x-agent-relay`(npm) | `x-agent-relay` 命令 |
+| `apps/cli` | `x-agent-relay-cli`(npm) | `x-agent-relay` 命令 |
 | `apps/relay-server` | — | 自托管 Node Relay |
 | `apps/relay-worker` | — | Cloudflare Worker + Durable Object Relay |
 

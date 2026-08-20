@@ -1,16 +1,16 @@
 {
-  "name": "@agent-relay/relay-server",
+  "name": "@x-agent-relay/relay-server",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "agent-relay-server": "./dist/index.js"
+    "x-agent-relay-server": "./dist/index.js"
   },
   "dependencies": {
-    "@agent-relay/protocol": "*",
-    "@agent-relay/relay-core": "*",
-    "@agent-relay/shared": "*",
+    "@x-agent-relay/protocol": "*",
+    "@x-agent-relay/relay-core": "*",
+    "@x-agent-relay/shared": "*",
     "@hono/node-server": "^1.13.0",
     "hono": "^4.6.0",
     "ws": "^8.18.0"

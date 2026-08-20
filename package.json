@@ -1,7 +1,6 @@
 {
-  "name": "agent-relay-monorepo",
-  "private": true,
-  "version": "0.1.0",
+  "name": "x-agent-relay",
+  "version": "0.1.3",
   "type": "module",
   "workspaces": [
     "apps/*",
@@ -14,8 +13,8 @@
     "agent": "node apps/cli/dist/index.js",
     "demo": "node scripts/demo.mjs",
     "verify:cloud": "node scripts/verify-cloudflare.mjs",
-    "deploy:cloud": "npm run deploy -w @agent-relay/relay-worker",
-    "publish:cli": "npm run build && npm run bundle -w agentrelay && npm publish -w agentrelay"
+    "deploy:cloud": "npm run deploy -w @x-agent-relay/relay-worker",
+    "publish:cli": "npm run build && npm run bundle -w x-agent-relay && npm publish -w x-agent-relay"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

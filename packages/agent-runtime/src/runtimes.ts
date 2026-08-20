@@ -8,7 +8,7 @@ import {
   type TaskEnvelope,
   type TaskResultPayload,
   type TaskUsage,
-} from "@agent-relay/protocol";
+} from "@x-agent-relay/protocol";
 import { buildTaskPrompt } from "./prompt.js";
 
 export interface RunOutcome {
@@ -135,7 +135,7 @@ export async function runTask(
   if (runtime === "mock") return mockRun(task, opts.signal, opts.onChunk);
 
   const prompt = buildTaskPrompt(task);
-  const dir = mkdtempSync(join(tmpdir(), "agent-relay-task-"));
+  const dir = mkdtempSync(join(tmpdir(), "x-agent-relay-task-"));
   try {
     for (const file of task.context?.files ?? []) {
       const safe = safeJoin(dir, file.path);

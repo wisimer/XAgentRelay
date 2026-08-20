@@ -14,7 +14,7 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RelayClient, ProviderConnection, delegate } from "@agent-relay/sdk";
+import { RelayClient, ProviderConnection, delegate } from "@x-agent-relay/sdk";
 
 const PORT = 8791;
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -23,7 +23,7 @@ const bad = (s) => `\x1b[31m${s}\x1b[0m`;
 const dim = (s) => `\x1b[2m${s}\x1b[0m`;
 const bold = (s) => `\x1b[1m${s}\x1b[0m`;
 
-const dataDir = mkdtempSync(join(tmpdir(), "agent-relay-demo-"));
+const dataDir = mkdtempSync(join(tmpdir(), "x-agent-relay-demo-"));
 const server = spawn(process.execPath, ["apps/relay-server/dist/index.js"], {
   env: { ...process.env, PORT: String(PORT), RELAY_DATA_DIR: dataDir },
   stdio: ["ignore", "inherit", "inherit"],

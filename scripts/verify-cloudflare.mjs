@@ -8,9 +8,9 @@
  * Usage: node scripts/verify-cloudflare.mjs [relayUrl]
  * (build first: npm run build)
  */
-import { RelayClient, ProviderConnection, delegate } from "@agent-relay/sdk";
+import { RelayClient, ProviderConnection, delegate } from "@x-agent-relay/sdk";
 
-const BASE = process.argv[2] ?? "https://agent-relay.1025195312.workers.dev";
+const BASE = process.argv[2] ?? "https://agent.kreplay.com";
 const ok = (s) => `\x1b[32m${s}\x1b[0m`;
 const bad = (s) => `\x1b[31m${s}\x1b[0m`;
 const dim = (s) => `\x1b[2m${s}\x1b[0m`;

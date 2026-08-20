@@ -1,5 +1,5 @@
 {
-  "name": "@agent-relay/sdk",
+  "name": "@x-agent-relay/sdk",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -11,7 +11,7 @@
     }
   },
   "dependencies": {
-    "@agent-relay/protocol": "*",
+    "@x-agent-relay/protocol": "*",
     "ws": "^8.18.0"
   }
 }

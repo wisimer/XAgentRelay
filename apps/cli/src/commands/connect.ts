@@ -35,7 +35,7 @@ export async function runConnect(opts: { relay?: string }): Promise<void> {
     }
   }
   const servers = (mcp.mcpServers as Record<string, unknown> | undefined) ?? {};
-  servers["agent-relay"] = {
+  servers["x-agent-relay"] = {
     command: process.execPath,
     args: [cliEntry, "mcp"],
     env: { AGENT_RELAY_URL: relayUrl },

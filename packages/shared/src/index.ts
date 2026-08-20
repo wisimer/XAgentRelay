@@ -16,7 +16,7 @@ export function newToken(): string {
 /* ------------------------------------------------------------ config files */
 
 export function relayDir(): string {
-  const base = process.env.AGENT_RELAY_HOME ?? join(homedir(), ".agent-relay");
+  const base = process.env.AGENT_RELAY_HOME ?? join(homedir(), ".x-agent-relay");
   if (!existsSync(base)) mkdirSync(base, { recursive: true });
   return base;
 }
@@ -68,7 +68,7 @@ export interface Identity {
   /** Local user id (also used as consumer id when delegating). */
   owner_id: string;
   name?: string;
-  /** Present once this machine ran `agent-relay register`. */
+  /** Present once this machine ran `x-agent-relay register`. */
   agent_id?: string;
   token?: string;
 }

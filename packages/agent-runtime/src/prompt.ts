@@ -1,4 +1,4 @@
-import type { TaskEnvelope } from "@agent-relay/protocol";
+import type { TaskEnvelope } from "@x-agent-relay/protocol";
 
 /**
  * Build the prompt handed to the local agent runtime. The consumer decides

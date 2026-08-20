@@ -81,7 +81,7 @@ export const dashboardHtml = `<!doctype html>
   }
   function renderAgents(agents) {
     var el = document.getElementById("agents");
-    if (!agents.length) { el.innerHTML = '<div class="empty">No agents registered yet. Run \\'agent-relay register\\' on a provider machine.</div>'; return; }
+    if (!agents.length) { el.innerHTML = '<div class="empty">No agents registered yet. Run \\'x-agent-relay register\\' on a provider machine.</div>'; return; }
     el.innerHTML = agents.map(function (a) {
       return '<div class="agent ' + a.status + '"><span class="dot"></span><span class="name">' + esc(a.name) + "</span>" +
         '<div class="meta">' + esc(a.runtime) + " · " + a.successCount + "/" + a.requestCount + " ok · " +

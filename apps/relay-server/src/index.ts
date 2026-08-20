@@ -6,8 +6,8 @@ import {
   DEFAULT_TASK_TIMEOUT_S,
   OFFLINE_AFTER_MS,
   isTerminal,
-} from "@agent-relay/protocol";
-import { StreamHub } from "@agent-relay/relay-core";
+} from "@x-agent-relay/protocol";
+import { StreamHub } from "@x-agent-relay/relay-core";
 import { buildApp } from "./api.js";
 import { AgentConnections } from "./connections.js";
 import { Store } from "./store.js";

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
-import { delegate, DelegationError, RelayClient } from "@agent-relay/sdk";
-import type { TaskFile } from "@agent-relay/protocol";
-import { ensureIdentity } from "@agent-relay/shared";
+import { delegate, DelegationError, RelayClient } from "@x-agent-relay/sdk";
+import type { TaskFile } from "@x-agent-relay/protocol";
+import { ensureIdentity } from "@x-agent-relay/shared";
 import { bold, cyan, dim, err, green, resolveRelayUrl, statusColor, yellow } from "../util.js";
 
 export interface DelegateOptions {
@@ -16,11 +16,11 @@ export interface DelegateOptions {
 }
 
 /**
- * One-shot delegation: agent-relay delegate "analyze this bug" --cap rust --file src/auth.ts
+ * One-shot delegation: x-agent-relay delegate "analyze this bug" --cap rust --file src/auth.ts
  */
 export async function runDelegate(goal: string[], opts: DelegateOptions): Promise<void> {
   if (!goal.length) {
-    err("usage: agent-relay delegate <goal> [--cap c1,c2] [--file path]...");
+    err("usage: x-agent-relay delegate <goal> [--cap c1,c2] [--file path]...");
     process.exitCode = 1;
     return;
   }
@@ -124,7 +124,7 @@ export async function runDelegate(goal: string[], opts: DelegateOptions): Promis
     if (e instanceof DelegationError) {
       err(`${e.message}${e.task ? ` (task ${e.task.task_id}, status ${e.task.status})` : ""}`);
       if (e.code === "no_matching_agent") {
-        console.log(dim("  tip: no online agent matched. Register one with `agent-relay register && agent-relay serve`."));
+        console.log(dim("  tip: no online agent matched. Register one with `x-agent-relay register && x-agent-relay serve`."));
       }
     } else {
       err((e as Error).message);

@@ -13,8 +13,8 @@ import {
   type RelayMessage,
   type TaskRecord,
   type TaskStatus,
-} from "@agent-relay/protocol";
-import { StreamHub } from "@agent-relay/relay-core";
+} from "@x-agent-relay/protocol";
+import { StreamHub } from "@x-agent-relay/relay-core";
 import type { Hono } from "hono";
 import { buildRoutes } from "./routes";
 import { newId, newToken } from "./ids";

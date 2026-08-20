@@ -1,5 +1,5 @@
 import type { RawData, WebSocket } from "ws";
-import type { RelayMessage } from "@agent-relay/protocol";
+import type { RelayMessage } from "@x-agent-relay/protocol";
 import type { Store } from "./store.js";
 
 /**

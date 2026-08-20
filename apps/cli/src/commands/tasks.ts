@@ -1,5 +1,5 @@
-import { RelayClient } from "@agent-relay/sdk";
-import { ensureIdentity } from "@agent-relay/shared";
+import { RelayClient } from "@x-agent-relay/sdk";
+import { ensureIdentity } from "@x-agent-relay/shared";
 import { bold, dim, resolveRelayUrl, statusColor } from "../util.js";
 
 export async function runTasks(opts: { relay?: string; all?: boolean }): Promise<void> {

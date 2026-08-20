@@ -1,9 +1,9 @@
-import { RelayClient, RelayApiError } from "@agent-relay/sdk";
+import { RelayClient, RelayApiError } from "@x-agent-relay/sdk";
 import {
   ensureIdentity,
   readAgentProfile,
   writeIdentity,
-} from "@agent-relay/shared";
+} from "@x-agent-relay/shared";
 import { bold, dim, err, green, resolveRelayUrl, statusColor } from "../util.js";
 
 export interface RegisterOptions {
@@ -27,7 +27,7 @@ export async function runRegister(opts: RegisterOptions): Promise<void> {
   ).map((c) => c.trim().toLowerCase()).filter(Boolean);
 
   if (!name || !runtime) {
-    err("No agent profile found. Run `agent-relay init` first (or pass --name/--runtime).");
+    err("No agent profile found. Run `x-agent-relay init` first (or pass --name/--runtime).");
     process.exitCode = 1;
     return;
   }
@@ -51,7 +51,7 @@ export async function runRegister(opts: RegisterOptions): Promise<void> {
     console.log(`  ${bold("Runtime:")}  ${res.agent.runtime}`);
     console.log(`  ${bold("Caps:")}     ${res.agent.capabilities.join(", ")}`);
     console.log(`  ${bold("Status:")}   ${statusColor(res.agent.status)}`);
-    console.log(dim(`  Identity saved. Next: ${"agent-relay serve"} to go online.`));
+    console.log(dim(`  Identity saved. Next: ${"x-agent-relay serve"} to go online.`));
   } catch (e) {
     if (e instanceof RelayApiError) err(`relay returned ${e.status}: ${e.message}`);
     else err(`cannot reach relay at ${baseUrl} (${(e as Error).message})`);

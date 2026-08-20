@@ -1,5 +1,5 @@
 {
-  "name": "@agent-relay/relay-worker",
+  "name": "@x-agent-relay/relay-worker",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,8 +9,8 @@
     "tail": "wrangler tail"
   },
   "dependencies": {
-    "@agent-relay/protocol": "*",
-    "@agent-relay/relay-core": "*",
+    "@x-agent-relay/protocol": "*",
+    "@x-agent-relay/relay-core": "*",
     "hono": "^4.6.0"
   },
   "devDependencies": {

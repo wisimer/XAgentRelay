@@ -1,7 +1,7 @@
 import readline from "node:readline";
-import type { TaskFile } from "@agent-relay/protocol";
-import { delegate, DelegationError, RelayClient } from "@agent-relay/sdk";
-import { ensureIdentity } from "@agent-relay/shared";
+import type { TaskFile } from "@x-agent-relay/protocol";
+import { delegate, DelegationError, RelayClient } from "@x-agent-relay/sdk";
+import { ensureIdentity } from "@x-agent-relay/shared";
 import { resolveRelayUrl } from "../util.js";
 
 /**
@@ -81,7 +81,7 @@ export async function runMcpServer(): Promise<void> {
     if (ids.length) {
       const client = new RelayClient(baseUrl, { consumerId: identity.owner_id });
       await Promise.allSettled(ids.map((id) => client.cancelTask(id)));
-      process.stderr.write(`[agent-relay mcp] cancelled ${ids.length} in-flight task(s)\n`);
+      process.stderr.write(`[x-agent-relay mcp] cancelled ${ids.length} in-flight task(s)\n`);
     }
     process.exit(0);
   };
@@ -120,7 +120,7 @@ export async function runMcpServer(): Promise<void> {
     maybeExit();
   });
 
-  process.stderr.write(`[agent-relay mcp] serving tools for relay ${baseUrl}\n`);
+  process.stderr.write(`[x-agent-relay mcp] serving tools for relay ${baseUrl}\n`);
 }
 
 function respond(id: number | string, result: unknown): void {
@@ -140,7 +140,7 @@ async function handle(
     respond(req.id, {
       protocolVersion: "2024-11-05",
       capabilities: { tools: {} },
-      serverInfo: { name: "agent-relay", version: "0.1.0" },
+      serverInfo: { name: "x-agent-relay", version: "0.1.3" },
     });
     return;
   }

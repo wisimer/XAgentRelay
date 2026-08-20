@@ -13,13 +13,13 @@ import { runMcpServer } from "./commands/mcp.js";
 const program = new Command();
 
 program
-  .name("agent-relay")
+  .name("x-agent-relay")
   .description("Let your agent call other agents like tools")
-  .version("0.1.0");
+  .version("0.1.3");
 
 program
   .command("init")
-  .description("Initialize ~/.agent-relay (config, identity, agent profile)")
+  .description("Initialize ~/.x-agent-relay (config, identity, agent profile)")
   .option("--role <role>", "provide | use | both")
   .option("--name <name>", "your name")
   .option("--agent-name <name>", "display name of your agent")

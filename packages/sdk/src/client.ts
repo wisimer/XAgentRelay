@@ -6,7 +6,7 @@ import type {
   RegisterResponse,
   StatsResponse,
   TaskRecord,
-} from "@agent-relay/protocol";
+} from "@x-agent-relay/protocol";
 
 export class RelayApiError extends Error {
   constructor(

@@ -5,7 +5,7 @@ import {
   type TaskEnvelope,
   type TaskResultPayload,
   type TaskUsage,
-} from "@agent-relay/protocol";
+} from "@x-agent-relay/protocol";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

@@ -1,9 +1,9 @@
-import { RelayClient } from "@agent-relay/sdk";
+import { RelayClient } from "@x-agent-relay/sdk";
 import { green, dim, err, saveRelayUrl } from "../util.js";
 
 export async function runLogin(url: string | undefined): Promise<void> {
   if (!url) {
-    err("usage: agent-relay login <relay-url>   e.g. agent-relay login https://relay.example.com");
+    err("usage: x-agent-relay login <relay-url>   e.g. x-agent-relay login https://relay.example.com");
     process.exitCode = 1;
     return;
   }

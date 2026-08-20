@@ -1,4 +1,4 @@
-import type { AgentRecord } from "@agent-relay/protocol";
+import type { AgentRecord } from "@x-agent-relay/protocol";
 
 export interface MatchResult {
   agent: AgentRecord;

@@ -1,4 +1,4 @@
-import type { AgentRecord, StatsResponse, TaskRecord } from "@agent-relay/protocol";
+import type { AgentRecord, StatsResponse, TaskRecord } from "@x-agent-relay/protocol";
 
 /** Dashboard / monitoring stats, shared by the node server and the CF worker. */
 export function computeStats(agents: AgentRecord[], tasks: TaskRecord[]): StatsResponse {

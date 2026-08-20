@@ -1,7 +1,7 @@
-import { runTask } from "@agent-relay/agent-runtime";
-import type { TaskEnvelope } from "@agent-relay/protocol";
-import { ProviderConnection } from "@agent-relay/sdk";
-import { ensureIdentity, readAgentProfile } from "@agent-relay/shared";
+import { runTask } from "@x-agent-relay/agent-runtime";
+import type { TaskEnvelope } from "@x-agent-relay/protocol";
+import { ProviderConnection } from "@x-agent-relay/sdk";
+import { ensureIdentity, readAgentProfile } from "@x-agent-relay/shared";
 import { bold, cyan, dim, err, green, red, resolveRelayUrl, statusColor, yellow } from "../util.js";
 
 export interface ServeOptions {
@@ -14,12 +14,12 @@ export async function runServe(opts: ServeOptions): Promise<void> {
   const profile = readAgentProfile();
 
   if (!identity.agent_id || !identity.token) {
-    err("This machine is not registered as a provider. Run `agent-relay register` first.");
+    err("This machine is not registered as a provider. Run `x-agent-relay register` first.");
     process.exitCode = 1;
     return;
   }
   if (!profile) {
-    err("Missing ~/.agent-relay/agent.json. Run `agent-relay init` first.");
+    err("Missing ~/.x-agent-relay/agent.json. Run `x-agent-relay init` first.");
     process.exitCode = 1;
     return;
   }

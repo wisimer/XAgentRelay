@@ -8,7 +8,7 @@ import {
   type TaskRecord,
   type TaskRequirements,
   type AgentPublic,
-} from "@agent-relay/protocol";
+} from "@x-agent-relay/protocol";
 import { RelayClient } from "./client.js";
 
 export interface DelegateOptions {

@@ -7,9 +7,9 @@ import {
   normalizeCapabilities,
   toPublicAgent,
   type CreateTaskRequest,
-} from "@agent-relay/protocol";
-import { newId } from "@agent-relay/shared";
-import { computeStats, dashboardHtml, selectAgent, taskStreamResponse, type StreamHub } from "@agent-relay/relay-core";
+} from "@x-agent-relay/protocol";
+import { newId } from "@x-agent-relay/shared";
+import { computeStats, dashboardHtml, selectAgent, taskStreamResponse, type StreamHub } from "@x-agent-relay/relay-core";
 import type { AgentConnections } from "./connections.js";
 import type { Store } from "./store.js";
 

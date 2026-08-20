@@ -13,8 +13,8 @@ import {
   type RelayMessage,
   type TaskRecord,
   type TaskStatus,
-} from "@agent-relay/protocol";
-import { computeStats, dashboardHtml, selectAgent, taskStreamResponse, type StreamHub } from "@agent-relay/relay-core";
+} from "@x-agent-relay/protocol";
+import { computeStats, dashboardHtml, selectAgent, taskStreamResponse, type StreamHub } from "@x-agent-relay/relay-core";
 import { newId } from "./ids";
 
 /**

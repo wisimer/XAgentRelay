@@ -1,6 +1,6 @@
 import type { WebSocket, WebSocketServer } from "ws";
-import { isTerminal, type ProviderMessage } from "@agent-relay/protocol";
-import type { StreamHub } from "@agent-relay/relay-core";
+import { isTerminal, type ProviderMessage } from "@x-agent-relay/protocol";
+import type { StreamHub } from "@x-agent-relay/relay-core";
 import type { AgentConnections } from "./connections.js";
 import { parseMessage } from "./connections.js";
 import type { Store } from "./store.js";

@@ -1,5 +1,5 @@
 import { userInfo } from "node:os";
-import { detectRuntimes } from "@agent-relay/agent-runtime";
+import { detectRuntimes } from "@x-agent-relay/agent-runtime";
 import {
   ensureIdentity,
   readConfig,
@@ -10,7 +10,7 @@ import {
   identityPath,
   agentProfilePath,
   type AgentProfile,
-} from "@agent-relay/shared";
+} from "@x-agent-relay/shared";
 import { ask, bold, cyan, dim, green } from "../util.js";
 
 export interface InitOptions {
@@ -53,7 +53,7 @@ export async function runInit(opts: InitOptions): Promise<void> {
   writeAgentProfile({ name: agentName, runtime, capabilities } satisfies AgentProfile);
   const identity = ensureIdentity();
   identity.name = ownerName;
-  const { writeIdentity } = await import("@agent-relay/shared");
+  const { writeIdentity } = await import("@x-agent-relay/shared");
   writeIdentity(identity);
 
   console.log("");
@@ -62,11 +62,11 @@ export async function runInit(opts: InitOptions): Promise<void> {
   console.log("");
   console.log(bold("Next steps:"));
   if (role !== "use") {
-    console.log(`  ${cyan("agent-relay register")}   register this agent with the relay`);
-    console.log(`  ${cyan("agent-relay serve")}      go online as a provider`);
+    console.log(`  ${cyan("x-agent-relay register")}   register this agent with the relay`);
+    console.log(`  ${cyan("x-agent-relay serve")}      go online as a provider`);
   }
   if (role !== "provide") {
-    console.log(`  ${cyan("agent-relay connect")}    wire /delegate into your coding agent`);
-    console.log(`  ${cyan('agent-relay delegate "analyze this bug" --cap rust')}  one-shot delegation`);
+    console.log(`  ${cyan("x-agent-relay connect")}    wire /delegate into your coding agent`);
+    console.log(`  ${cyan('x-agent-relay delegate "analyze this bug" --cap rust')}  one-shot delegation`);
   }
 }

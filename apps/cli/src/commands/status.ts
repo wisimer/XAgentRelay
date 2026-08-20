@@ -1,5 +1,5 @@
-import { RelayClient } from "@agent-relay/sdk";
-import { ensureIdentity } from "@agent-relay/shared";
+import { RelayClient } from "@x-agent-relay/sdk";
+import { ensureIdentity } from "@x-agent-relay/shared";
 import { bold, dim, err, resolveRelayUrl, statusColor } from "../util.js";
 
 export async function runStatus(opts: { relay?: string }): Promise<void> {
@@ -30,6 +30,6 @@ export async function runStatus(opts: { relay?: string }): Promise<void> {
       console.log(`  agent:   ${identity.agent_id} ${dim("(not found on this relay)")}`);
     }
   } else {
-    console.log(dim("  agent:   not registered (run `agent-relay register`)"));
+    console.log(dim("  agent:   not registered (run `x-agent-relay register`)"));
   }
 }

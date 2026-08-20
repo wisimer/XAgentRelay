@@ -1,5 +1,5 @@
 {
-  "name": "@agent-relay/agent-runtime",
+  "name": "@x-agent-relay/agent-runtime",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -11,6 +11,6 @@
     }
   },
   "dependencies": {
-    "@agent-relay/protocol": "*"
+    "@x-agent-relay/protocol": "*"
   }
 }

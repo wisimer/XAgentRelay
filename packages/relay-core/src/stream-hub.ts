@@ -1,4 +1,4 @@
-import { isTerminal, type TaskRecord } from "@agent-relay/protocol";
+import { isTerminal, type TaskRecord } from "@x-agent-relay/protocol";
 
 /** A consumer-side live subscriber for one task's stream. */
 export interface StreamSink {

@@ -1,6 +1,6 @@
 import readline from "node:readline/promises";
-import { DEFAULT_RELAY_URL } from "@agent-relay/protocol";
-import { readConfig, writeConfig, type RelayConfig } from "@agent-relay/shared";
+import { DEFAULT_RELAY_URL } from "@x-agent-relay/protocol";
+import { readConfig, writeConfig, type RelayConfig } from "@x-agent-relay/shared";
 
 /* ------------------------------------------------------------------ output */
 
@@ -39,7 +39,7 @@ export async function ask(question: string, fallback?: string): Promise<string> 
 
 /* ------------------------------------------------------------------- relay */
 
-/** Resolve relay base URL: --relay flag > env > ~/.agent-relay/config.json > default. */
+/** Resolve relay base URL: --relay flag > env > ~/.x-agent-relay/config.json > default. */
 export function resolveRelayUrl(flag?: string): string {
   if (flag) return flag.replace(/\/$/, "");
   const env = process.env.AGENT_RELAY_URL;

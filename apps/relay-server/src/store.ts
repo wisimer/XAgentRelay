@@ -7,8 +7,8 @@ import {
   type AgentRegistration,
   type TaskRecord,
   type TaskStatus,
-} from "@agent-relay/protocol";
-import { newId, newToken } from "@agent-relay/shared";
+} from "@x-agent-relay/protocol";
+import { newId, newToken } from "@x-agent-relay/shared";
 
 interface StoreData {
   agents: AgentRecord[];

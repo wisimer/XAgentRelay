@@ -15,7 +15,9 @@ $ARGUMENTS
 
 Steps:
 1. Decide which capabilities the task requires (e.g. typescript, rust, debugging).
-2. Gather relevant context: file contents, logs, environment info. You decide what to share.
+   If none apply, omit capabilities — the request then defaults to matching an
+   agent running this machine's model tag (provider/model format).
+2. Gather relevant context: file contents, logs, environment info. You decide what you share.
 3. Call \`delegate_to_agent\` with { task, capabilities, files?, logs?, environment? }.
 4. When the result returns, review it and continue your own work with the new information.
 `;

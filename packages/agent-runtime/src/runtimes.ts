@@ -290,7 +290,7 @@ async function mockRun(
   onChunk?: (text: string) => void,
 ): Promise<RunOutcome> {
   const delayMs = Number(process.env.AGENT_RELAY_MOCK_DELAY_MS ?? 400);
-  const caps = task.capabilities.join(", ") || "general";
+  const caps = task.capabilities.join(", ") || "any";
   // Stream a few progress beats over the mock delay so consumers see liveness.
   const beats = [
     `[mock:${caps}] received task, reading context…\n`,

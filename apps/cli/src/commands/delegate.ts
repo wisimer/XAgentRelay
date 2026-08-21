@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { delegate, DelegationError, RelayClient } from "@x-agent-relay/sdk";
 import type { TaskFile } from "@x-agent-relay/protocol";
-import { ensureIdentity } from "@x-agent-relay/shared";
+import { ensureIdentity, readAgentProfile } from "@x-agent-relay/shared";
 import { bold, cyan, dim, err, green, resolveRelayUrl, statusColor, yellow } from "../util.js";
 
 export interface DelegateOptions {
@@ -27,7 +27,14 @@ export async function runDelegate(goal: string[], opts: DelegateOptions): Promis
   const baseUrl = resolveRelayUrl(opts.relay);
   const identity = ensureIdentity();
 
-  const capabilities = (opts.cap ?? []).flatMap((c) => c.split(",")).map((c) => c.trim().toLowerCase()).filter(Boolean);
+  let capabilities = (opts.cap ?? []).flatMap((c) => c.split(",")).map((c) => c.trim().toLowerCase()).filter(Boolean);
+  // No caps (or the "general" tag host agents tend to fill in) falls back to
+  // this machine's model tag — the task routes to a same-model provider
+  // instead of matching nothing.
+  if (capabilities.length === 0 || (capabilities.length === 1 && capabilities[0] === "general")) {
+    const model = readAgentProfile()?.model;
+    if (model) capabilities = [model.toLowerCase()];
+  }
   const files: TaskFile[] = (opts.file ?? []).map((path) => ({
     path,
     content: readFileSync(path, "utf8"),

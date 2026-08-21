@@ -1,3 +1,4 @@
+import { defaultModelForRuntime } from "@x-agent-relay/agent-runtime";
 import { RelayClient, RelayApiError } from "@x-agent-relay/sdk";
 import {
   ensureIdentity,
@@ -11,6 +12,7 @@ export interface RegisterOptions {
   name?: string;
   runtime?: string;
   caps?: string;
+  model?: string;
 }
 
 export async function runRegister(opts: RegisterOptions): Promise<void> {
@@ -20,11 +22,17 @@ export async function runRegister(opts: RegisterOptions): Promise<void> {
 
   const name = opts.name ?? profile?.name;
   const runtime = opts.runtime ?? profile?.runtime;
+  // Model tag (provider/model): advertised as a capability so consumers can
+  // route by model, and used as the default when they delegate without caps.
+  const model = (opts.model ?? profile?.model ?? (runtime ? defaultModelForRuntime(runtime) : null))
+    ?.trim()
+    .toLowerCase();
   const capabilities = (
     opts.caps
       ? opts.caps.split(",")
       : (profile?.capabilities ?? ["coding"])
   ).map((c) => c.trim().toLowerCase()).filter(Boolean);
+  if (model && !capabilities.includes(model)) capabilities.push(model);
 
   if (!name || !runtime) {
     err("No agent profile found. Run `x-agent-relay init` first (or pass --name/--runtime).");
@@ -49,6 +57,7 @@ export async function runRegister(opts: RegisterOptions): Promise<void> {
     console.log(`  ${bold("Agent ID:")}  ${res.agent_id}`);
     console.log(`  ${bold("Name:")}     ${res.agent.name}`);
     console.log(`  ${bold("Runtime:")}  ${res.agent.runtime}`);
+    if (model) console.log(`  ${bold("Model:")}    ${model}`);
     console.log(`  ${bold("Caps:")}     ${res.agent.capabilities.join(", ")}`);
     console.log(`  ${bold("Status:")}   ${statusColor(res.agent.status)}`);
     console.log(dim(`  Identity saved. Next: ${"x-agent-relay serve"} to go online.`));

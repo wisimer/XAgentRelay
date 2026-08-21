@@ -16,7 +16,7 @@ const program = new Command();
 program
   .name("x-agent-relay")
   .description("Let your agent call other agents like tools")
-  .version("0.1.10");
+  .version("0.1.11");
 
 program
   .command("init")
@@ -26,6 +26,7 @@ program
   .option("--agent-name <name>", "display name of your agent")
   .option("--caps <list>", "comma separated capabilities, e.g. rust,debugging")
   .option("--runtime <runtime>", "claude-code | opencode | codex | mock")
+  .option("--model <tag>", "model tag in provider/model format, e.g. zhipu/glm (advertised as a capability)")
   .option("--relay <url>", "relay server url")
   .action(runInit);
 
@@ -36,6 +37,7 @@ program
   .option("--name <name>", "override agent name")
   .option("--runtime <runtime>", "override runtime")
   .option("--caps <list>", "override capabilities")
+  .option("--model <tag>", "override model tag (provider/model)")
   .action(runRegister);
 
 program

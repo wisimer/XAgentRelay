@@ -99,6 +99,9 @@ export interface AgentProfile {
   name: string;
   runtime: string;
   capabilities: string[];
+  /** Model tag in provider/model format, e.g. "zhipu/glm". Used as the
+   *  default matching capability when a delegation has none. */
+  model?: string;
 }
 
 export function readAgentProfile(): AgentProfile | null {

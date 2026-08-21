@@ -1,5 +1,5 @@
 import { userInfo } from "node:os";
-import { detectRuntimes } from "@x-agent-relay/agent-runtime";
+import { defaultModelForRuntime, detectRuntimes } from "@x-agent-relay/agent-runtime";
 import {
   ensureIdentity,
   readConfig,
@@ -19,6 +19,7 @@ export interface InitOptions {
   agentName?: string;
   caps?: string;
   runtime?: string;
+  model?: string;
   relay?: string;
 }
 
@@ -36,21 +37,39 @@ export async function runInit(opts: InitOptions): Promise<void> {
       `Detected runtimes: ${detected.map((r) => `${r.runtime}${r.available ? " ✓" : " ✗"}`).join("  ")}`,
     ),
   );
-  const defaultRuntime = available[0]?.runtime ?? "mock";
-  const runtime =
-    opts.runtime ?? (await ask(`Runtime to expose [${detected.map((r) => r.runtime).join("/")}], default ${defaultRuntime}`, defaultRuntime));
+  // Numeric menu like the role question above; mock is always choosable.
+  const runtimeOptions = [...available.map((r) => r.runtime), "mock"];
+  const defaultRuntimeNo = (available[0] ? runtimeOptions.indexOf(available[0].runtime) : runtimeOptions.length - 1) + 1;
+  const runtimeAnswer =
+    opts.runtime ??
+    (await ask(
+      `Runtime to expose ${runtimeOptions.map((r, i) => `[${i + 1}] ${r}`).join("  ")} (${defaultRuntimeNo})`,
+      String(defaultRuntimeNo),
+    ));
+  const runtime = runtimeOptions[Number(runtimeAnswer) - 1] ?? runtimeAnswer;
 
   const ownerName = opts.name ?? (await ask("Your name:", userInfo().username));
   const defaultAgentName = `${ownerName}'s Agent (${runtime})`;
   const agentName = opts.agentName ?? (await ask("Agent name:", defaultAgentName));
 
-  const capsRaw = opts.caps ?? (await ask("Capabilities (comma separated):", "coding"));
+  // Capabilities default to the model tag (provider/model): it is what a
+  // bare /delegate matches on, and register broadcasts it for model routing.
+  const modelDefault = defaultModelForRuntime(runtime) ?? "";
+  const capsRaw =
+    opts.caps ??
+    opts.model ??
+    (await ask(
+      `Capabilities (comma separated${modelDefault ? `, model tag ${modelDefault}` : ", e.g. zhipu/glm"}):`,
+      modelDefault || "coding",
+    ));
   const capabilities = capsRaw.split(",").map((c) => c.trim().toLowerCase()).filter(Boolean);
+  const modelRaw = opts.model ?? capabilities.find((c) => c.includes("/")) ?? (modelDefault || undefined);
+  const model = modelRaw?.trim().toLowerCase() || undefined;
 
   const relayUrl = opts.relay ?? (await ask("Relay server URL, default https://agent.kreplay.com:", readConfig()?.relay ?? "https://agent.kreplay.com"));
 
   writeConfig({ ...(readConfig() ?? {}), relay: relayUrl.replace(/\/$/, "") });
-  writeAgentProfile({ name: agentName, runtime, capabilities } satisfies AgentProfile);
+  writeAgentProfile({ name: agentName, runtime, capabilities, ...(model ? { model } : {}) } satisfies AgentProfile);
   const identity = ensureIdentity();
   identity.name = ownerName;
   const { writeIdentity } = await import("@x-agent-relay/shared");

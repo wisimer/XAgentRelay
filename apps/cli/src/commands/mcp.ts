@@ -1,7 +1,7 @@
 import readline from "node:readline";
 import type { TaskFile } from "@x-agent-relay/protocol";
 import { delegate, DelegationError, RelayClient } from "@x-agent-relay/sdk";
-import { ensureIdentity } from "@x-agent-relay/shared";
+import { ensureIdentity, readAgentProfile } from "@x-agent-relay/shared";
 import { resolveRelayUrl } from "../util.js";
 
 /**
@@ -32,7 +32,10 @@ const DELEGATE_TOOL = {
       capabilities: {
         type: "array",
         items: { type: "string" },
-        description: "Required capabilities, e.g. ['typescript','redis','debugging'].",
+        description:
+          "Required capabilities, e.g. ['typescript','redis','debugging'], or a model " +
+          "tag like 'zhipu/glm' to target a specific model. Omit (or pass ['general']) " +
+          "to match an agent running this machine's model.",
       },
       files: {
         type: "array",
@@ -184,11 +187,22 @@ async function callDelegate(
       ? (args.environment as Record<string, string | number>)
       : undefined;
 
+  let capabilities = Array.isArray(args.capabilities)
+    ? (args.capabilities as string[]).map((c) => String(c).trim().toLowerCase()).filter(Boolean)
+    : [];
+  // No caps (or the "general" tag host agents tend to fill in) falls back to
+  // this machine's model tag — the task routes to a same-model provider
+  // instead of matching nothing.
+  if (capabilities.length === 0 || (capabilities.length === 1 && capabilities[0] === "general")) {
+    const model = readAgentProfile()?.model;
+    if (model) capabilities = [model.toLowerCase()];
+  }
+
   let taskId: string | null = null;
   try {
     const task = await delegate({
       goal,
-      capabilities: Array.isArray(args.capabilities) ? (args.capabilities as string[]) : [],
+      capabilities,
       context: files || logs || environment ? { files, logs, environment } : undefined,
       requirements: typeof args.timeout === "number" ? { timeout: args.timeout } : undefined,
       baseUrl,

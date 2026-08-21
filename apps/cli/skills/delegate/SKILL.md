@@ -34,7 +34,7 @@ x-agent-relay delegate "<任务描述>" --cap <cap1>,<cap2> [--file <相关文�
 
 ## 工作流程
 
-1. 从任务推断所需 capabilities（如 `typescript`、`rust`、`debugging`、`mock`）。
+1. 从任务推断所需 capabilities（如 `typescript`、`rust`、`debugging`），也可以用模型标签（如 `zhipu/glm`、`anthropic/claude`）指定对方使用的大模型。**没有特定要求时直接省略 capabilities**——默认会按本机 agent 的模型标签（provider/model）匹配同模型的远程 Agent，不要填 `general`。
 2. 收集相关上下文：文件内容、日志、环境信息——由你判断分享哪些。
 3. 调用 MCP 工具或 CLI 发起委派，等待流式结果。
 4. 拿到返回的 summary / analysis / recommendation 后，**基于它继续完成用户的工作**，不要只是转述。

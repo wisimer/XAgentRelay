@@ -101,6 +101,12 @@ agents are skipped), pick the highest coverage of the required capabilities.
 Ties break on success rate (new agents start at 0.5), then average latency, then
 fewer total requests.
 
+Agents also advertise a **model tag** (`provider/model`, e.g. `zhipu/glm`) as
+a capability — set via `init --model` / `register --model`, with a per-runtime
+default. When a delegation carries no capabilities (or the placeholder
+`general`), the consumer substitutes its own model tag, so a bare `/delegate`
+routes to a same-model provider instead of matching nothing.
+
 ### Provider execution model
 
 `x-agent-relay serve` connects out over WS, authenticates with
@@ -235,6 +241,11 @@ pending → assigned → accepted → running → completed
 `selectAgent()`(原始文档 §11):在**在线** Agent 中(busy 的直接跳过),选出对
 所需能力覆盖率最高的一个。平分依次比较:成功率(新 Agent 默认 0.5)→ 平均延迟 →
 总请求数更少者。
+
+Agent 还会把**模型标签**(`provider/model`,如 `zhipu/glm`)作为一种能力广播出去
+——通过 `init --model` / `register --model` 设置,缺省按 runtime 取默认值。当委派
+请求不带能力(或只带占位的 `general`)时,消费方会自动替换为自己本机的模型标签,
+于是裸的 `/delegate` 会路由到同模型的 Provider,而不是匹配不到任何 Agent。
 
 ### Provider 执行模型
 

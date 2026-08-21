@@ -1,6 +1,6 @@
 {
   "name": "x-agent-relay-cli",
-  "version": "0.1.11",
+  "version": "0.1.13",
   "description": "Delegate subtasks from your coding agent to other agents on the Agent Relay network",
   "keywords": ["agent", "ai", "delegation", "mcp", "claude", "opencode", "codex", "trae", "cli"],
   "license": "MIT",

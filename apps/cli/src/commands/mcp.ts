@@ -143,7 +143,7 @@ async function handle(
     respond(req.id, {
       protocolVersion: "2024-11-05",
       capabilities: { tools: {} },
-      serverInfo: { name: "x-agent-relay", version: "0.1.9" },
+      serverInfo: { name: "x-agent-relay", version: "0.1.13" },
     });
     return;
   }

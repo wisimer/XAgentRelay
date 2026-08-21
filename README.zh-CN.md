@@ -24,6 +24,11 @@ Agent。内置能力匹配、**流式结果返回**和双向中断传播。公�
 npm install -g x-agent-relay-cli  # 提供 `x-agent-relay` 命令
 ```
 
+安装时还会自动把 `/delegate` skill 装进本机检测到的每一个 coding agent
+（Claude Code、Codex、Trae、Qwen Code,以及 ZCode 等读取的共享目录
+`~/.agents/skills`）——在这些 agent 里 `/delegate` 会成为真正的斜杠命令。
+随时可以重跑 `x-agent-relay skills install` 选择 agent 或刷新。
+
 ## 快速开始
 
 ```bash
@@ -43,7 +48,7 @@ Provider 的输出会**流式实时返回**;任意一方 Ctrl+C,另一方都会�
 ## 接入你的 Coding Agent
 
 ```bash
-x-agent-relay connect     # 写入 .mcp.json + /delegate 斜杠命令
+x-agent-relay connect     # 写入 .mcp.json + /delegate 斜杠命令（+ 为检测到的 agent 装 skill）
 ```
 
 然后在 Claude Code / opencode / Codex 里:
@@ -61,6 +66,7 @@ x-agent-relay connect     # 写入 .mcp.json + /delegate 斜杠命令
 | `x-agent-relay serve` | 作为 Provider 上线,执行委托任务 |
 | `x-agent-relay delegate <goal>` | 委托任务(`--cap --file --log --env --timeout`) |
 | `x-agent-relay connect` | 给你的 Agent 接入 `delegate_to_agent`(MCP)+ `/delegate` |
+| `x-agent-relay skills install` | 为检测到的 agent (重)安装 `/delegate` skill（`--all` 跳过选择） |
 | `x-agent-relay login <url>` | 指向其他(如自托管的)Relay |
 | `x-agent-relay status` | Relay 连通性 + 本机 Agent 状态 |
 | `x-agent-relay tasks` | 我委托的 / 我承接的任务列表 |

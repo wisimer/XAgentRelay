@@ -1,17 +1,20 @@
 {
   "name": "x-agent-relay-cli",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Delegate subtasks from your coding agent to other agents on the Agent Relay network",
-  "keywords": ["agent", "ai", "delegation", "mcp", "claude", "opencode", "codex", "cli"],
+  "keywords": ["agent", "ai", "delegation", "mcp", "claude", "opencode", "codex", "trae", "cli"],
   "license": "MIT",
   "type": "module",
   "bin": {
     "x-agent-relay": "./dist-bin/x-agent-relay.mjs"
   },
   "files": [
-    "dist-bin"
+    "dist-bin",
+    "skills",
+    "scripts"
   ],
   "scripts": {
+    "postinstall": "node scripts/postinstall.mjs",
     "bundle": "esbuild dist/index.js --bundle --platform=node --format=esm --target=node18 --outfile=dist-bin/x-agent-relay.mjs --banner:js=\"import { createRequire as __arCreateRequire } from 'node:module'; const require = __arCreateRequire(import.meta.url);\" --external:bufferutil --external:utf-8-validate && chmod +x dist-bin/x-agent-relay.mjs"
   },
   "publishConfig": {

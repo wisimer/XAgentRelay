@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { bold, cyan, dim, green, resolveRelayUrl } from "../util.js";
+import { detectSkillTargets, findPackagedSkill, installSkillTo } from "./skills.js";
 
 const SLASH_COMMAND = `---
 description: Delegate a subtask to another agent on the Agent Relay network
@@ -120,6 +121,16 @@ export async function runConnect(opts: { relay?: string }): Promise<void> {
     vscode.servers = vs;
     writeJson(vscodePath, vscode);
     console.log(green(`✓ VS Code MCP server registered: ${vscodePath}`));
+  }
+
+  // 4. /delegate skill for every detected agent (Claude Code, Codex, Trae,
+  // Qwen, shared ~/.agents — registers a real slash command where supported).
+  const skillSrc = findPackagedSkill();
+  if (skillSrc) {
+    for (const target of detectSkillTargets()) {
+      const dest = installSkillTo(target, skillSrc);
+      console.log(green(`✓ ${target.label} skill installed: ${dest}`));
+    }
   }
 
   console.log("");

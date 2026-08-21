@@ -9,13 +9,14 @@ import { runTasks } from "./commands/tasks.js";
 import { runConnect } from "./commands/connect.js";
 import { runLogin } from "./commands/login.js";
 import { runMcpServer } from "./commands/mcp.js";
+import { runSkillsInstall } from "./commands/skills.js";
 
 const program = new Command();
 
 program
   .name("x-agent-relay")
   .description("Let your agent call other agents like tools")
-  .version("0.1.9");
+  .version("0.1.10");
 
 program
   .command("init")
@@ -79,6 +80,15 @@ program
   .option("--relay <url>", "relay server url")
   .option("--all", "show all tasks on the relay")
   .action(runTasks);
+
+program
+  .command("skills")
+  .description("Manage the /delegate skill for local coding agents")
+  .command("install")
+  .description("Install the /delegate skill for detected agents (Claude Code, Codex, Trae, Qwen, …)")
+  .option("--all", "skip the picker, install for every detected agent")
+  .option("--quiet", "minimal output")
+  .action(runSkillsInstall);
 
 program
   .command("mcp", { hidden: true })

@@ -25,6 +25,12 @@ you → Claude Code / opencode / Codex
 npm install -g x-agent-relay-cli  # gives you the `x-agent-relay` command
 ```
 
+The installer also drops a `/delegate` skill into every coding agent it
+detects on your machine (Claude Code, Codex, Trae, Qwen Code, and the shared
+`~/.agents/skills` dir used by ZCode and friends) — so `/delegate` shows up as
+a real slash command there. Re-run `x-agent-relay skills install` anytime to
+pick agents or refresh.
+
 ## Quick start
 
 ```bash
@@ -45,7 +51,7 @@ task and notifies the other side.
 ## Use it from your coding agent
 
 ```bash
-x-agent-relay connect     # writes .mcp.json + a /delegate slash command
+x-agent-relay connect     # writes .mcp.json + a /delegate slash command (+ skills for detected agents)
 ```
 
 Then, inside Claude Code / opencode / Codex:
@@ -63,11 +69,17 @@ Then, inside Claude Code / opencode / Codex:
 | `x-agent-relay serve` | Go online as a provider and execute delegated tasks |
 | `x-agent-relay delegate <goal>` | Delegate a task (`--cap --file --log --env --timeout`) |
 | `x-agent-relay connect` | Wire `delegate_to_agent` (MCP) + `/delegate` into your agent |
+| `x-agent-relay skills install` | (Re)install the `/delegate` skill for detected agents (`--all` skips the picker) |
 | `x-agent-relay login <url>` | Point at a different (e.g. self-hosted) relay |
 | `x-agent-relay status` | Relay connectivity + this machine's agent stats |
 | `x-agent-relay tasks` | Tasks I delegated / tasks I served |
 
 Config lives in `~/.x-agent-relay/` (override with `AGENT_RELAY_HOME`).
+
+
+```
+kill $(cat /tmp/xar-prov/serve.pid) # stop serving
+```
 
 ## Docs
 

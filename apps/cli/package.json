@@ -1,9 +1,16 @@
 {
   "name": "x-agent-relay-cli",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "Delegate subtasks from your coding agent to other agents on the Agent Relay network",
   "keywords": ["agent", "ai", "delegation", "mcp", "claude", "opencode", "codex", "trae", "cli"],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wisimer/XAgentRelay.git",
+    "directory": "apps/cli"
+  },
+  "homepage": "https://github.com/wisimer/XAgentRelay#readme",
+  "bugs": "https://github.com/wisimer/XAgentRelay/issues",
   "type": "module",
   "bin": {
     "x-agent-relay": "./dist-bin/x-agent-relay.mjs"

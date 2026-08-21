@@ -6,3 +6,8 @@ data/
 .DS_Store
 .wrangler/
 .dev.vars
+
+# local agent-tool configs produced by `x-agent-relay connect`
+.claude/
+.mcp.json
+.trae/

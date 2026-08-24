@@ -66,11 +66,13 @@ x-agent-relay proxy --runtime opencode --model zhipu/glm
 ```
 
 The proxy speaks the Anthropic Messages API (`/v1/messages`) and the OpenAI
-chat API (`/v1/chat/completions`), streaming included. With `--wire` it
-writes `ANTHROPIC_BASE_URL` into `~/.claude/settings.json` (backup kept;
-undo with `--restore`) so Claude Code uses the relay with zero setup.
-Other agents just need `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` pointed at
-`http://127.0.0.1:8790`.
+chat API (`/v1/chat/completions`), streaming included. With `--wire` (default
+in interactive mode) it configures everything for you: Claude Code's
+`ANTHROPIC_BASE_URL` in `~/.claude/settings.json` and an `agent-relay`
+provider in opencode's `~/.config/opencode/opencode.json` — after a restart
+the Agent Relay models simply appear in opencode's `/models` list, and
+switching models there switches the remote agent. Backups are kept; undo
+everything with `--restore`.
 
 ### Capability & model matching
 
@@ -157,10 +159,11 @@ x-agent-relay proxy --runtime opencode --model zhipu/glm
 ```
 
 代理兼容 Anthropic Messages API(`/v1/messages`)和 OpenAI chat API
-(`/v1/chat/completions`),支持流式。加 `--wire` 会把 `ANTHROPIC_BASE_URL`
-写入 `~/.claude/settings.json`(自动备份,`--restore` 可还原),Claude Code
-零配置接入;其他 agent 把 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` 指到
-`http://127.0.0.1:8790` 即可。
+(`/v1/chat/completions`),支持流式。`--wire`(交互模式默认开启)会自动配置
+一切:Claude Code 的 `ANTHROPIC_BASE_URL` 写入 `~/.claude/settings.json`,
+opencode 则在 `~/.config/opencode/opencode.json` 注册 `agent-relay`
+provider——重启 opencode 后 Agent Relay 的模型直接出现在 `/models` 列表里,
+在里面切模型就是切远程 agent。自动备份,`--restore` 一键全部还原。
 
 ### 能力与模型匹配
 

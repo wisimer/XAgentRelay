@@ -100,10 +100,12 @@ async function pickModel(entry: RuntimeModels): Promise<string | null> {
     .then((m) => (m === null ? null : m.includes(ALL_MODELS_SENTINEL) ? "" : m));
 }
 
-/* ------------------------------------------------- claude code auto-wiring */
+/* --------------------------------------------------------- auto-wiring */
 
 const CLAUDE_SETTINGS = () => join(homedir(), ".claude", "settings.json");
 const CLAUDE_BACKUP = () => CLAUDE_SETTINGS() + ".x-agent-relay-bak";
+const OPENCODE_SETTINGS = () => join(homedir(), ".config", "opencode", "opencode.json");
+const OPENCODE_BACKUP = () => OPENCODE_SETTINGS() + ".x-agent-relay-bak";
 
 function readJson(path: string): Record<string, unknown> {
   if (!existsSync(path)) return {};
@@ -114,13 +116,19 @@ function readJson(path: string): Record<string, unknown> {
   }
 }
 
+/** Back up before the first modification only, so --restore undoes to the
+ *  user's true pre-wire state even after several wire runs. */
+function backupOnce(path: string, backup: string): void {
+  if (existsSync(path) && !existsSync(backup)) copyFileSync(path, backup);
+}
+
 /** Point Claude Code at the local proxy (env block of ~/.claude/settings.json). */
 function wireClaudeCode(baseUrl: string): string {
   const settingsPath = CLAUDE_SETTINGS();
   mkdirSync(dirname(settingsPath), { recursive: true });
   if (!existsSync(settingsPath)) writeFileSync(settingsPath, "{}\n", "utf8");
+  backupOnce(settingsPath, CLAUDE_BACKUP());
   const settings = readJson(settingsPath);
-  copyFileSync(settingsPath, CLAUDE_BACKUP());
   settings.env = {
     ...(settings.env as Record<string, unknown> | undefined),
     ANTHROPIC_BASE_URL: baseUrl,
@@ -130,10 +138,47 @@ function wireClaudeCode(baseUrl: string): string {
   return settingsPath;
 }
 
-function restoreClaudeCode(): boolean {
-  if (!existsSync(CLAUDE_BACKUP())) return false;
-  copyFileSync(CLAUDE_BACKUP(), CLAUDE_SETTINGS());
-  return true;
+/**
+ * Register an "agent-relay" provider in opencode's config so its /models list
+ * shows every relay model. Model keys are sanitized (provider/model →
+ * provider-model) because opencode references models as provider/model and a
+ * slash inside the id would be ambiguous; the proxy maps them back to tags.
+ */
+function wireOpenCode(baseUrl: string, models: { key: string; tag: string; runtime: string }[]): string {
+  const settingsPath = OPENCODE_SETTINGS();
+  mkdirSync(dirname(settingsPath), { recursive: true });
+  if (!existsSync(settingsPath)) writeFileSync(settingsPath, "{}\n", "utf8");
+  backupOnce(settingsPath, OPENCODE_BACKUP());
+  const settings = readJson(settingsPath);
+  const provider = settings.provider as Record<string, unknown> | undefined;
+  const modelMap: Record<string, { name: string }> = {};
+  for (const m of models) modelMap[m.key] = { name: `${m.tag} · ${m.runtime}` };
+  settings.provider = {
+    ...(provider ?? {}),
+    "agent-relay": {
+      npm: "@ai-sdk/openai-compatible",
+      name: "Agent Relay",
+      options: { baseURL: `${baseUrl}/v1`, apiKey: "x-agent-relay" },
+      models: modelMap,
+    },
+  };
+  writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf8");
+  return settingsPath;
+}
+
+/** Restore every file the wirer touched. Returns human-readable results. */
+function restoreAll(): string[] {
+  const results: string[] = [];
+  for (const [settings, backup, label] of [
+    [CLAUDE_SETTINGS(), CLAUDE_BACKUP(), "Claude Code"],
+    [OPENCODE_SETTINGS(), OPENCODE_BACKUP(), "opencode"],
+  ] as const) {
+    if (existsSync(backup)) {
+      copyFileSync(backup, settings);
+      results.push(`${label}: restored`);
+    }
+  }
+  return results;
 }
 
 /* ------------------------------------------------------ protocol adapters */
@@ -199,13 +244,29 @@ interface ProxyState {
   baseUrl: string;
   runtime: string;
   model: string; // "" = any model of the runtime's agents
+  /** Request model name (tag or sanitized) → model tag, for per-request routing. */
+  routes: Map<string, string>;
   consumerId: string;
   startedAt: number;
   requests: number;
 }
 
+/** Model-tag routing table: exact tags plus sanitized keys ("zhipu/glm" → "zhipu-glm"). */
+function buildRoutes(entries: RuntimeModels[]): Map<string, string> {
+  const routes = new Map<string, string>();
+  for (const e of entries) {
+    for (const tag of e.models) {
+      routes.set(tag, tag);
+      routes.set(tag.replace(/\//g, "-"), tag);
+    }
+  }
+  return routes;
+}
+
 /**
- * Delegate one chat request to the relay as the selected model.
+ * Delegate one chat request to the relay. The target model is the one the
+ * client asked for when it names a known tag (so switching models inside the
+ * coding agent switches the remote agent), else the proxy's selection.
  * Live provider chunks are forwarded through onChunk as they arrive; after
  * completion only the not-yet-streamed remainder of the final text is sent,
  * so nothing is duplicated.
@@ -215,12 +276,14 @@ async function delegateAsModel(
   req: ChatRequest,
   onChunk?: (text: string) => void,
 ): Promise<string> {
+  const requested = req.model ? state.routes.get(req.model.trim().toLowerCase()) : undefined;
+  const target = requested ?? state.model;
   let streamed = "";
   const task = await delegate({
     goal: req.prompt,
-    capabilities: state.model ? [state.model] : [],
+    capabilities: target ? [target] : [],
     type: "chat",
-    context: { environment: { via: "x-agent-relay proxy", runtime: state.runtime, ...(state.model ? { model: state.model } : {}) } },
+    context: { environment: { via: "x-agent-relay proxy", runtime: state.runtime, ...(target ? { model: target } : {}) } },
     baseUrl: state.baseUrl,
     consumerId: state.consumerId,
     onEvent: (ev: DelegateEvent) => void ev,
@@ -312,7 +375,16 @@ function handleOpenAi(state: ProxyState, body: Record<string, unknown>, res: Ser
     })
     .catch((e: unknown) => {
       const message = e instanceof DelegationError ? e.message : (e as Error).message;
-      writeJson(res, 502, { error: { message, type: "api_error" } });
+      // Streaming responses already sent their headers — an SSE error chunk is
+      // the only valid way to report failures there; writeHead would throw
+      // ERR_HTTP_HEADERS_SENT and kill the proxy.
+      if (res.headersSent) {
+        sseEvent(res, null, { ...chunkBase, choices: [{ index: 0, delta: { content: `\n[agent-relay error] ${message}` }, finish_reason: "stop" }] });
+        res.write("data: [DONE]\n\n");
+        res.end();
+      } else {
+        writeJson(res, 502, { error: { message, type: "api_error" } });
+      }
     });
 }
 
@@ -339,7 +411,8 @@ function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
 
 export async function runProxy(opts: ProxyOptions): Promise<void> {
   if (opts.restore) {
-    console.log(restoreClaudeCode() ? green("✓ Claude Code settings restored from backup") : dim("no backup found — nothing to restore"));
+    const results = restoreAll();
+    console.log(results.length ? green(`✓ ${results.join(" · ")}`) : dim("nothing to restore"));
     return;
   }
 
@@ -408,7 +481,10 @@ export async function runProxy(opts: ProxyOptions): Promise<void> {
   }
 
   const port = Number(opts.port ?? DEFAULT_PORT);
-  const state: ProxyState = { baseUrl, runtime, model: model ?? "", consumerId: identity.owner_id, startedAt: Date.now(), requests: 0 };
+  const state: ProxyState = {
+    baseUrl, runtime, model: model ?? "", routes: buildRoutes(entries),
+    consumerId: identity.owner_id, startedAt: Date.now(), requests: 0,
+  };
 
   const server = createServer((req, res) => {
     const url = (req.url ?? "/").split("?")[0];
@@ -439,7 +515,13 @@ export async function runProxy(opts: ProxyOptions): Promise<void> {
     state.requests += 1;
     readBody(req)
       .then((body) => handler(state, body, res))
-      .catch((e: unknown) => writeJson(res, 400, { error: { message: (e as Error).message } }));
+      .catch((e: unknown) => {
+        if (res.headersSent) {
+          res.end(); // too late for a status code — just close the stream
+        } else {
+          writeJson(res, 400, { error: { message: (e as Error).message } });
+        }
+      });
   });
 
   server.listen(port, "127.0.0.1", () => {
@@ -456,18 +538,40 @@ export async function runProxy(opts: ProxyOptions): Promise<void> {
     console.log(dim("Ctrl+C stops the proxy."));
   });
 
-  // Zero-config wiring: Claude Code reads env from ~/.claude/settings.json.
-  // Default on for the interactive flow, off for scripted --runtime/--model runs.
+  // Zero-config wiring (cc-switch style): Claude Code env block + opencode
+  // provider entry, both backed up, both undone by --restore. Default on for
+  // the interactive flow, off for scripted --runtime/--model runs.
   const wantsWire = opts.wire ?? (process.stdin.isTTY && !opts.runtime);
   if (wantsWire) {
+    const target = `http://127.0.0.1:${port}`;
+    const models = entries.flatMap((e) =>
+      e.models.map((tag) => ({ key: tag.replace(/\//g, "-"), tag, runtime: e.runtime })),
+    );
     try {
-      const path = wireClaudeCode(`http://127.0.0.1:${port}`);
+      const path = wireClaudeCode(target);
       console.log(green(`✓ Claude Code wired: ${path}`));
-      console.log(dim(`  backup at ${CLAUDE_BACKUP()} · undo with \`x-agent-relay proxy --restore\``));
     } catch (e) {
       console.log(yellow(`  could not wire Claude Code: ${(e as Error).message}`));
     }
+    if (models.length) {
+      try {
+        const path = wireOpenCode(target, models);
+        console.log(green(`✓ opencode wired: ${path}`));
+        console.log(dim("  restart opencode → Agent Relay models appear in /models"));
+      } catch (e) {
+        console.log(yellow(`  could not wire opencode: ${(e as Error).message}`));
+      }
+    }
+    console.log(dim(`  undo everything with \`x-agent-relay proxy --restore\``));
   }
+
+  // A long-running proxy must survive any single bad request: log and keep serving.
+  process.on("unhandledRejection", (reason) => {
+    console.log(yellow(`  [proxy] unhandled rejection: ${String(reason)}`));
+  });
+  process.on("uncaughtException", (err) => {
+    console.log(yellow(`  [proxy] uncaught exception: ${err instanceof Error ? err.message : String(err)}`));
+  });
 
   const shutdown = () => {
     console.log(dim("\nshutting down..."));

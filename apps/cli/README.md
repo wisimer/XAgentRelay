@@ -54,6 +54,24 @@ Then inside Claude Code / opencode / Codex / Trae:
 /delegate analyze the token refresh race condition in src/auth.ts
 ```
 
+### Use as your model backend (cc-switch style)
+
+Run a local LLM API proxy and route your coding agent through the relay —
+pick a runtime (claude code, opencode, codex, …) and a model, no other config:
+
+```bash
+x-agent-relay proxy                # interactive: pick runtime → model
+x-agent-relay proxy --list         # just list runtimes and models
+x-agent-relay proxy --runtime opencode --model zhipu/glm
+```
+
+The proxy speaks the Anthropic Messages API (`/v1/messages`) and the OpenAI
+chat API (`/v1/chat/completions`), streaming included. With `--wire` it
+writes `ANTHROPIC_BASE_URL` into `~/.claude/settings.json` (backup kept;
+undo with `--restore`) so Claude Code uses the relay with zero setup.
+Other agents just need `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` pointed at
+`http://127.0.0.1:8790`.
+
 ### Capability & model matching
 
 Agents advertise capabilities plus a **model tag** (`provider/model`, e.g.
@@ -71,6 +89,7 @@ your machine's model.
 | `x-agent-relay serve` | Go online as a provider and execute delegated tasks |
 | `x-agent-relay delegate <goal>` | Delegate a task (`--cap --file --log --env --timeout`) |
 | `x-agent-relay connect` | Wire `delegate_to_agent` (MCP) + `/delegate` into your agent |
+| `x-agent-relay proxy` | Local LLM API proxy routing requests to remote agents (`--runtime --model --list --wire`) |
 | `x-agent-relay skills install` | (Re)install the `/delegate` skill for detected agents (`--all` skips the picker) |
 | `x-agent-relay login <url>` | Point at a different (e.g. self-hosted) relay |
 | `x-agent-relay status` | Relay connectivity + this machine's agent stats |
@@ -126,6 +145,23 @@ x-agent-relay connect     # 写入 MCP 工具、/delegate 斜杠命令与 skill
 /delegate 帮我分析 src/auth.ts 中的 token refresh race condition
 ```
 
+### 作为模型后端使用(cc-switch 风格)
+
+启动本地 LLM API 代理,把你的 coding agent 接到 Relay 上——选择 runtime
+(claude code、opencode、codex…)和模型即可,无需其他配置:
+
+```bash
+x-agent-relay proxy                # 交互式:选 runtime → 选模型
+x-agent-relay proxy --list         # 只列出 runtime 和模型
+x-agent-relay proxy --runtime opencode --model zhipu/glm
+```
+
+代理兼容 Anthropic Messages API(`/v1/messages`)和 OpenAI chat API
+(`/v1/chat/completions`),支持流式。加 `--wire` 会把 `ANTHROPIC_BASE_URL`
+写入 `~/.claude/settings.json`(自动备份,`--restore` 可还原),Claude Code
+零配置接入;其他 agent 把 `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` 指到
+`http://127.0.0.1:8790` 即可。
+
 ### 能力与模型匹配
 
 Agent 会广播能力标签和**模型标签**(`provider/model`,如 `zhipu/glm`、
@@ -142,6 +178,7 @@ Agent 会广播能力标签和**模型标签**(`provider/model`,如 `zhipu/glm`�
 | `x-agent-relay serve` | 作为 Provider 上线,执行委托任务 |
 | `x-agent-relay delegate <goal>` | 委托任务(`--cap --file --log --env --timeout`) |
 | `x-agent-relay connect` | 接入 `delegate_to_agent`(MCP)+ `/delegate` |
+| `x-agent-relay proxy` | 本地 LLM API 代理,把请求路由到远程 agent(`--runtime --model --list --wire`) |
 | `x-agent-relay skills install` | 为检测到的 agent (重)安装 `/delegate` skill(`--all` 跳过选择) |
 | `x-agent-relay login <url>` | 指向其他(如自托管的)Relay |
 | `x-agent-relay status` | Relay 连通性 + 本机 Agent 状态 |

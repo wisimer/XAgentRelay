@@ -10,13 +10,14 @@ import { runConnect } from "./commands/connect.js";
 import { runLogin } from "./commands/login.js";
 import { runMcpServer } from "./commands/mcp.js";
 import { runSkillsInstall } from "./commands/skills.js";
+import { runProxy } from "./commands/proxy.js";
 
 const program = new Command();
 
 program
   .name("x-agent-relay")
   .description("Let your agent call other agents like tools")
-  .version("0.1.14");
+  .version("0.1.15");
 
 program
   .command("init")
@@ -91,6 +92,18 @@ program
   .option("--all", "skip the picker, install for every detected agent")
   .option("--quiet", "minimal output")
   .action(runSkillsInstall);
+
+program
+  .command("proxy")
+  .description("Run a local LLM API proxy that routes requests to remote agents (cc-switch style)")
+  .option("--relay <url>", "relay server url")
+  .option("--port <n>", "local proxy port (default 8790)")
+  .option("--runtime <name>", "target runtime, e.g. claude-code | opencode | codex")
+  .option("--model <tag>", "target model tag (provider/model), empty = any model of the runtime")
+  .option("--list", "list online runtimes and their model tags, then exit")
+  .option("--wire", "auto-configure Claude Code to use this proxy")
+  .option("--restore", "restore the Claude Code settings backup made by --wire")
+  .action(runProxy);
 
 program
   .command("mcp", { hidden: true })

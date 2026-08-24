@@ -95,6 +95,9 @@ export const dashboardHtml = `<!doctype html>
   <div class="step"><div class="head"><div class="n">03 · Delegate</div>
     <div class="what">Hand a subtask to the best-matched agent — or use /delegate inside your coding agent.</div></div>
     <code><b>x-agent-relay</b> delegate "analyze this bug" --cap rust</code></div>
+  <div class="step"><div class="head"><div class="n">04 · Proxy mode</div>
+    <div class="what">Use the network as a switchable model backend — pick a runtime &amp; model, Claude Code / opencode auto-wired.</div></div>
+    <code><b>x-agent-relay</b> proxy --runtime opencode --model kimi/kimi3</code></div>
 </div>
 
 <h2>Agents</h2>
@@ -103,7 +106,7 @@ export const dashboardHtml = `<!doctype html>
 
 <h2>Delegated Tasks</h2>
 <table>
-  <thead><tr><th>ID</th><th>Type</th><th>Provider</th><th>Capabilities</th><th>Status</th><th>Duration</th></tr></thead>
+  <thead><tr><th>ID</th><th>Host</th><th>Provider</th><th>Model</th><th>Status</th><th>Created</th><th>Duration</th></tr></thead>
   <tbody id="tasks"></tbody>
 </table>
 <div class="more" id="tasksMore"></div>
@@ -173,20 +176,20 @@ export const dashboardHtml = `<!doctype html>
       '<div class="prow">avg latency <b>' + (p.avgLatencyMs ? (p.avgLatencyMs / 1000).toFixed(1) + "s" : "—") + "</b></div>" +
       '<div class="chips">' + p.capabilities.map(function (c) { return '<span class="chip">' + esc(c) + "</span>"; }).join("") + "</div>" +
       "</div>";
-    return '<span class="tt">' + esc(p.id.slice(0, 12)) + pop + "</span>";
+    return '<span class="tt">' + esc(p.name) + pop + "</span>";
   }
   function renderTasks(tasks) {
     var el = document.getElementById("tasks");
     var more = document.getElementById("tasksMore");
-    if (!tasks.length) { el.innerHTML = '<tr><td colspan="6" class="empty">No tasks delegated yet.</td></tr>'; more.textContent = ""; return; }
+    if (!tasks.length) { el.innerHTML = '<tr><td colspan="7" class="empty">No tasks delegated yet.</td></tr>'; more.textContent = ""; return; }
     var sorted = tasks.slice().sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
     var shown = sorted.slice(0, TASK_LIMIT);
     more.textContent = sorted.length > TASK_LIMIT ? "+ " + (sorted.length - TASK_LIMIT) + " older task(s) not shown" : "";
     el.innerHTML = shown.map(function (t) {
-      return "<tr><td>" + esc(t.task_id.slice(0, 12)) + "</td><td>" +
-        esc(t.provider ? t.provider.runtime : "—") + "</td><td>" + providerCell(t) + "</td><td>" +
+      return "<tr><td>" + esc(t.task_id.slice(0, 12)) + "</td><td>" + providerCell(t) + "</td><td>" +
+        esc(t.provider ? t.provider.runtime : "—") + "</td><td>" +
         esc(t.capabilities.join(", ") || "—") + '</td><td><span class="st ' + t.status + '">' + t.status +
-        "</span></td><td>" + fmtDur(t) + "</td></tr>";
+        "</span></td><td>" + (t.createdAt ? new Date(t.createdAt).toLocaleString() : "—") + "</td><td>" + fmtDur(t) + "</td></tr>";
     }).join("");
   }
   function refresh() {

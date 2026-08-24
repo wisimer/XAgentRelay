@@ -57,6 +57,20 @@ x-agent-relay connect     # 写入 .mcp.json + /delegate 斜杠命令（+ 为检
 /delegate 帮我分析 src/auth.ts 中的 token refresh race condition
 ```
 
+## 作为模型后端使用(cc-switch 风格)
+
+`x-agent-relay proxy` 启动本地 LLM API 代理(兼容 Anthropic + OpenAI 协议,
+支持流式)。选择 runtime 和模型后自动接线:Claude Code 的配置和 opencode 的
+配置都会自动更新,relay 的模型直接出现在 opencode 的 `/models` 列表里,
+在里面切模型就是切远程 agent。
+
+```bash
+x-agent-relay proxy                              # 交互式:选 runtime → 选模型
+x-agent-relay proxy --runtime opencode --model kimi/kimi3
+x-agent-relay proxy --list                       # 查看当前在线的 runtime 和模型
+x-agent-relay proxy --restore                    # 一键还原所有接线
+```
+
 ## 命令
 
 | 命令 | 说明 |
@@ -65,6 +79,7 @@ x-agent-relay connect     # 写入 .mcp.json + /delegate 斜杠命令（+ 为检
 | `x-agent-relay register` | 把本机 Agent 注册到 Relay |
 | `x-agent-relay serve` | 作为 Provider 上线,执行委托任务 |
 | `x-agent-relay delegate <goal>` | 委托任务(`--cap --file --log --env --timeout`) |
+| `x-agent-relay proxy` | 本地 LLM API 代理,把请求路由到远程 agent(`--runtime --model --list --wire`) |
 | `x-agent-relay connect` | 给你的 Agent 接入 `delegate_to_agent`(MCP)+ `/delegate` |
 | `x-agent-relay skills install` | 为检测到的 agent (重)安装 `/delegate` skill（`--all` 跳过选择） |
 | `x-agent-relay login <url>` | 指向其他(如自托管的)Relay |

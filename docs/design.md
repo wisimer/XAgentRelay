@@ -44,13 +44,21 @@
   external dependencies.
 - **Dashboard at `/`** was added beyond the original CLI-focused spec — the
   public relay needs a visible face.
+- **The proxy is a consumer-side adapter, not a relay feature.** `x-agent-relay
+  proxy` speaks the Anthropic/OpenAI wire protocols locally and maps each chat
+  request to a relay task keyed by model tag. The relay itself stays unchanged,
+  so every existing deployment serves proxy users for free. Trade-off: remote
+  agents are one-shot, so tool_use can't round-trip — chat/analysis requests
+  fit, interactive agent loops don't (use `/delegate` for those).
 
 ### Roadmap
 
 - Phase 1 ✅ — registry, capability matching, dispatch, CLI, local runtimes
 - Phase 2 ✅ — timeouts, bidirectional interruption (consumer cancel / provider disconnect)
 - Phase 3 ✅ — streaming output, Cloudflare deployment, npm distribution
-- Phase 4 (planned) — enforced permissions / sandboxing, scoped consumer tokens,
+- Phase 4 ✅ — /delegate skill distribution, provider/model capability tags,
+  cc-switch-style local LLM API proxy
+- Phase 5 (planned) — enforced permissions / sandboxing, scoped consumer tokens,
   Python SDK, multi-relay federation, capability discovery
 
 ---
@@ -86,11 +94,17 @@
 - **累积流尾部截断至 64KB**(`MAX_STREAM_CHARS`),防止话痨 Provider 撑爆任务记录。
 - **内置 `mock` runtime**,让 `npm run demo` 零外部依赖即可运行。
 - **`/` 的 Dashboard** 是超出原始 CLI 规范的增量 — 公共 Relay 需要一张看得见的脸。
+- **代理是 Consumer 侧适配器,不是 Relay 功能。** `x-agent-relay proxy` 在本地
+  说 Anthropic/OpenAI 线上协议,把每个对话请求映射为按模型标签路由的 Relay 任务。
+  Relay 本身零改动,所有已部署的 Relay 天然支持代理用户。取舍:远程 agent 是一次性
+  执行,tool_use 无法往返 — 适合对话 / 分析类请求;交互式 agent 循环请用 `/delegate`。
 
 ### 路线图
 
 - Phase 1 ✅ — 注册表、能力匹配、调度、CLI、本地 runtime
 - Phase 2 ✅ — 超时、双向中断(Consumer 取消 / Provider 断连)
 - Phase 3 ✅ — 流式输出、Cloudflare 部署、npm 分发
-- Phase 4(计划)— 强制执行权限 / 沙箱、Consumer scoped token、Python SDK、
+- Phase 4 ✅ — /delegate skill 分发、provider/model 模型标签路由、
+  cc-switch 风格的本地 LLM API 代理
+- Phase 5(计划)— 强制执行权限 / 沙箱、Consumer scoped token、Python SDK、
   多 Relay 联邦、能力发现

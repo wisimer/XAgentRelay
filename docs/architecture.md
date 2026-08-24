@@ -145,6 +145,40 @@ Polling `GET /api/tasks/:id` remains **authoritative** for status; SSE is a
 best-effort enhancement — if the stream disconnects, the consumer silently falls
 back to polling.
 
+### Proxy mode (cc-switch style)
+
+`x-agent-relay proxy` turns the network into a switchable model backend for
+local coding agents — no per-agent configuration needed:
+
+```
+Claude Code / opencode / codex (local)
+  → local proxy http://127.0.0.1:8790
+      · speaks Anthropic Messages API (/v1/messages)
+      · speaks OpenAI chat API (/v1/chat/completions), both with SSE streaming
+      · GET /v1/models lists every online agent's model tags
+  → relay task (capabilities = [model tag], type "chat")
+  → best-matched online agent executes, stdout streams back as deltas
+  → proxy reassembles the result into the protocol response
+```
+
+- **Model routing**: on startup the proxy lists online runtimes and their
+  `provider/model` tags (interactive picker, or `--runtime` / `--model`).
+  A request naming a known tag — raw (`kimi/kimi3`) or sanitized
+  (`kimi-kimi3`) — is routed to that model, so switching models inside the
+  coding agent switches the remote agent; unknown names fall back to the
+  proxy's selection.
+- **Zero-config wiring** (`--wire`, default in interactive mode): writes
+  `ANTHROPIC_BASE_URL` into Claude Code's `~/.claude/settings.json` and an
+  `agent-relay` provider into opencode's `~/.config/opencode/opencode.json`
+  so relay models appear in `/models`. Backups are kept;
+  `x-agent-relay proxy --restore` undoes everything.
+- **Failure handling**: delegation failures surface as an error chunk in the
+  SSE stream (or a 502 for non-streaming); the proxy process survives any
+  single bad request.
+- **Limitations (MVP)**: tool_use blocks are not round-tripped (the remote
+  agent is one-shot), and the remote agent has no session memory — each
+  request carries the flattened conversation.
+
 ---
 
 ## 中文
@@ -282,3 +316,33 @@ runtime stdout → task_chunk(WS,200ms 节流)
 
 轮询 `GET /api/tasks/:id` 仍是状态的**权威来源**;SSE 只是尽力增强 — 流断开时
 Consumer 会静默回退到轮询。
+
+### 代理模式(cc-switch 风格)
+
+`x-agent-relay proxy` 把整个网络变成本地 coding agent 可切换的模型后端——
+无需为每个 agent 单独配置:
+
+```
+Claude Code / opencode / codex(本地)
+  → 本地代理 http://127.0.0.1:8790
+      · 兼容 Anthropic Messages API(/v1/messages)
+      · 兼容 OpenAI chat API(/v1/chat/completions),均支持 SSE 流式
+      · GET /v1/models 列出所有在线 agent 的模型标签
+  → Relay 任务(capabilities = [模型标签],type "chat")
+  → 匹配度最高的在线 agent 执行,stdout 实时流回为增量
+  → 代理把结果组装回对应协议的响应
+```
+
+- **模型路由**:代理启动时列出在线 runtime 及其 `provider/model` 标签
+  (交互选择,或 `--runtime` / `--model`)。请求里带了已知标签 —— 原始写法
+  (`kimi/kimi3`)或净化写法(`kimi-kimi3`)都会路由到该模型,所以在 coding
+  agent 里切模型就是切远程 agent;未知模型名回退到代理启动时的选择。
+- **零配置接线**(`--wire`,交互模式默认开启):把 `ANTHROPIC_BASE_URL` 写入
+  Claude Code 的 `~/.claude/settings.json`,并向 opencode 的
+  `~/.config/opencode/opencode.json` 注册 `agent-relay` provider——重启后
+  relay 的模型直接出现在 `/models` 里。自动备份;
+  `x-agent-relay proxy --restore` 一键全部还原。
+- **失败处理**:委派失败以 SSE 错误块(非流式为 502)返回给客户端;单个坏
+  请求不会弄死代理进程。
+- **限制(MVP)**:tool_use 块不回传(远程 agent 是一次性执行);远程 agent
+  无会话记忆,每个请求携带压平的完整对话。

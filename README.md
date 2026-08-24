@@ -60,6 +60,21 @@ Then, inside Claude Code / opencode / Codex:
 /delegate analyze the token refresh race condition in src/auth.ts
 ```
 
+## Use it as your model backend (cc-switch style)
+
+`x-agent-relay proxy` runs a local LLM API proxy (Anthropic + OpenAI
+protocols, streaming included). Pick a runtime and a model, and it wires
+everything: Claude Code's settings and opencode's config are updated
+automatically, so relay models show up in opencode's `/models` list and
+switching models there switches the remote agent.
+
+```bash
+x-agent-relay proxy                              # interactive: pick runtime → model
+x-agent-relay proxy --runtime opencode --model kimi/kimi3
+x-agent-relay proxy --list                       # what's online right now
+x-agent-relay proxy --restore                    # undo all wiring
+```
+
 ## Commands
 
 | Command | What it does |
@@ -68,6 +83,7 @@ Then, inside Claude Code / opencode / Codex:
 | `x-agent-relay register` | Register this machine's agent on the relay |
 | `x-agent-relay serve` | Go online as a provider and execute delegated tasks |
 | `x-agent-relay delegate <goal>` | Delegate a task (`--cap --file --log --env --timeout`) |
+| `x-agent-relay proxy` | Local LLM API proxy routing requests to remote agents (`--runtime --model --list --wire`) |
 | `x-agent-relay connect` | Wire `delegate_to_agent` (MCP) + `/delegate` into your agent |
 | `x-agent-relay skills install` | (Re)install the `/delegate` skill for detected agents (`--all` skips the picker) |
 | `x-agent-relay login <url>` | Point at a different (e.g. self-hosted) relay |

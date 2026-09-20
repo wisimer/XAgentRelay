@@ -254,6 +254,8 @@ export interface CreateTicketRequest {
   kind?: TicketKind | string;
   reporter?: string;
   assignedAgentId?: string | null;
+  /** Initial status. Default "todo" (auto-dispatched by the ticket worker). */
+  status?: TicketStatus;
 }
 
 export interface UpdateTicketRequest {

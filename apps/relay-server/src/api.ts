@@ -15,7 +15,7 @@ import {
   type UpdateTicketRequest,
 } from "@x-agent-relay/protocol";
 import { newId } from "@x-agent-relay/shared";
-import { computeStats, dashboardHtml, selectAgent, taskStreamResponse, type StreamHub } from "@x-agent-relay/relay-core";
+import { computeStats, dashboardHtml, selectAgent, taskStreamResponse, ticketsHtml, type StreamHub } from "@x-agent-relay/relay-core";
 import type { AgentConnections } from "./connections.js";
 import type { Store } from "./store.js";
 
@@ -24,6 +24,8 @@ export function buildApp(store: Store, connections: AgentConnections, streams: S
   const startedAt = Date.now();
 
   app.get("/", (c) => c.html(dashboardHtml));
+
+  app.get("/tickets", (c) => c.html(ticketsHtml));
 
   app.get("/api/health", (c) =>
     c.json({ ok: true, version: PROTOCOL_VERSION, uptime_s: Math.round((Date.now() - startedAt) / 1000) }),
@@ -218,12 +220,20 @@ export function buildApp(store: Store, connections: AgentConnections, streams: S
       }
       assignedAgentId = String(body.assignedAgentId);
     }
+    let status: TicketRecord["status"] = "todo";
+    if (body?.status) {
+      if (!TICKET_STATUSES.includes(body.status)) {
+        return c.json({ error: `status must be one of ${TICKET_STATUSES.join(", ")}` }, 400);
+      }
+      status = body.status;
+    }
     const ticket = store.createTicket({
       title,
       description: body?.description?.trim() || "",
       kind: body?.kind ?? "issue",
       reporter: body?.reporter ?? null,
       assignedAgentId,
+      status,
     });
     return c.json({ ticket: ticketView(ticket) }, 201);
   });

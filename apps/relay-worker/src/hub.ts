@@ -222,6 +222,7 @@ export class RelayHub extends DurableObject<Env> implements TicketBackend {
     kind?: string;
     reporter?: string | null;
     assignedAgentId?: string | null;
+    status?: TicketRecord["status"];
   }): TicketRecord {
     const now = Date.now();
     const ticket: TicketRecord = {
@@ -229,7 +230,7 @@ export class RelayHub extends DurableObject<Env> implements TicketBackend {
       title: input.title,
       description: input.description ?? "",
       kind: input.kind ?? "issue",
-      status: "todo",
+      status: input.status ?? "todo",
       assignedAgentId: input.assignedAgentId ?? null,
       taskIds: [],
       attempts: 0,

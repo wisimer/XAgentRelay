@@ -56,23 +56,7 @@ export const dashboardHtml = `<!doctype html>
   .st.running,.st.accepted,.st.assigned,.st.pending { color:var(--warn); }
   .empty { color:var(--dim); padding:18px 0; }
   .cell-sub { color:var(--dim); font-size:11px; margin-top:2px; }
-  /* tickets */
-  #ticketsWrap .tform { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
-  .tform input, .tform select, .tform button { background:#0d1117; border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:7px 10px; font:12px ui-monospace,SFMono-Regular,Menlo,monospace; }
-  .tform input:focus, .tform select:focus { outline:none; border-color:var(--accent); }
-  .tform .grow { flex:1 1 240px; }
-  .tform button { cursor:pointer; color:var(--accent); }
-  .tform button:hover { border-color:var(--accent); }
-  select.tsel { background:#0d1117; border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:3px 6px; font:11px ui-monospace,SFMono-Regular,Menlo,monospace; max-width:170px; }
-  .tb { display:flex; gap:4px; }
-  .tb button { background:none; border:1px solid var(--line); color:var(--dim); border-radius:99px; padding:1px 10px; font-size:11px; cursor:pointer; }
-  .tb button:hover { color:var(--fg); }
-  .tb button.on.todo { color:var(--warn); border-color:var(--warn); }
-  .tb button.on.inreview { color:var(--accent); border-color:var(--accent); }
-  .tb button.on.done { color:var(--ok); border-color:var(--ok); }
-  .kind { display:inline-block; padding:0 8px; border-radius:99px; font-size:10px; border:1px solid var(--line); vertical-align:middle; }
-  .kind.bug { color:var(--err); } .kind.issue { color:var(--warn); } .kind.suggestion { color:var(--accent); }
-  .note { color:var(--dim); font-size:12px; max-width:210px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:middle; }
+  /* provider tooltip */
   .tt { position:relative; color:var(--accent); cursor:default; }
   .tt .pop { display:none; position:absolute; bottom:calc(100% + 8px); left:0; background:#0d1117; border:1px solid var(--line); border-radius:8px; padding:12px 14px; width:270px; z-index:20; box-shadow:0 8px 24px rgba(0,0,0,.45); font-size:12px; color:var(--fg); }
   .tt:hover .pop { display:block; }
@@ -80,13 +64,62 @@ export const dashboardHtml = `<!doctype html>
   .pop .prow { color:var(--dim); margin-top:6px; }
   .pop .prow b { color:var(--fg); font-weight:400; }
   .pop .chips { margin-top:8px; }
+  /* top nav */
+  .toprow { display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  .topnav a { font-size:12px; letter-spacing:1px; text-transform:uppercase; }
+  .topnav a:hover { text-decoration:underline; }
+  /* home ticket link card */
+  .ticketcard { display:block; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 18px; color:var(--dim); font-size:12.5px; }
+  .ticketcard:hover { border-color:var(--accent); }
+  .ticketcard .tstats { margin-top:8px; font-size:12px; }
+  .tstats b { font-weight:400; }
+  .tstats b.warn { color:var(--warn); } .tstats b.acc { color:var(--accent); } .tstats b.ok { color:var(--ok); }
+  /* kanban board */
+  .board { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; align-items:start; margin-top:14px; }
+  @media (max-width:960px) { .board { grid-template-columns:1fr; } }
+  .col { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .colhead { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:2px 4px 10px; border-bottom:1px solid var(--line); margin-bottom:10px; }
+  .colhead .label { font-size:12px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; }
+  .colhead .label.todo { color:var(--warn); } .colhead .label.inreview { color:var(--accent); } .colhead .label.done { color:var(--ok); }
+  .colhead .cnt { color:var(--dim); font-size:11px; margin-left:auto; }
+  .addbtn { background:none; border:1px solid var(--line); color:var(--dim); border-radius:6px; width:26px; height:26px; cursor:pointer; font-size:15px; line-height:1; flex:0 0 auto; }
+  .addbtn:hover { color:var(--accent); border-color:var(--accent); }
+  .cards { display:flex; flex-direction:column; gap:10px; max-height:calc(100vh - 320px); min-height:60px; overflow-y:auto; padding-right:2px; }
+  .card { background:#0d1117; border:1px solid var(--line); border-radius:8px; padding:12px; }
+  .card:hover { border-color:#2c3a52; }
+  .card .title { font-weight:700; font-size:13px; overflow-wrap:anywhere; }
+  .card .meta { color:var(--dim); font-size:11px; margin-top:4px; }
+  .card .note { margin-top:6px; }
+  .card .foot { display:flex; align-items:center; gap:6px; margin-top:10px; flex-wrap:wrap; }
+  .card .foot .tb { margin-left:auto; }
+  .card .task { margin-top:6px; font-size:11px; color:var(--dim); }
+  .note-full { color:var(--dim); font-size:12px; overflow-wrap:anywhere; }
+  /* modal */
+  .overlay { position:fixed; inset:0; background:rgba(4,8,14,.72); display:none; align-items:center; justify-content:center; z-index:50; }
+  .overlay.show { display:flex; }
+  .modal { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px 22px; width:min(500px,92vw); box-shadow:0 16px 48px rgba(0,0,0,.5); }
+  .modal h3 { font-size:14px; letter-spacing:1px; text-transform:uppercase; }
+  .modal h3.todo { color:var(--warn); } .modal h3.inreview { color:var(--accent); } .modal h3.done { color:var(--ok); }
+  .modal .mform { display:flex; flex-direction:column; gap:10px; margin-top:14px; }
+  .modal input, .modal select, .modal textarea { background:#0d1117; border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:8px 10px; font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace; width:100%; }
+  .modal textarea { resize:vertical; min-height:72px; }
+  .modal input:focus, .modal select:focus, .modal textarea:focus { outline:none; border-color:var(--accent); }
+  .modal .mrow { display:flex; gap:10px; }
+  .modal .mrow > * { flex:1; }
+  .modal .mactions { display:flex; justify-content:flex-end; gap:8px; margin-top:4px; }
+  .modal .mbtn { background:#0d1117; border:1px solid var(--line); color:var(--accent); border-radius:6px; padding:8px 16px; font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace; cursor:pointer; }
+  .modal .mbtn:hover { border-color:var(--accent); }
+  .modal .mbtn.ghost { color:var(--dim); }
   /* footer */
   footer { margin-top:36px; padding-top:14px; border-top:1px solid var(--line); color:var(--dim); font-size:12px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; }
 </style>
 </head>
 <body>
 <div class="hero">
-  <h1>AGENT <span>RELAY</span></h1>
+  <div class="toprow">
+    <h1>AGENT <span>RELAY</span></h1>
+    <nav class="topnav"><a href="/tickets">Ticket Board →</a></nav>
+  </div>
   <div class="tagline">Let agents call other agents <em>like tools</em>.</div>
   <div class="sub">
     Agent Relay is an open agent-to-agent RPC network. Providers register their local coding
@@ -122,25 +155,11 @@ export const dashboardHtml = `<!doctype html>
 <div class="agents" id="agents"></div>
 <div class="more" id="agentsMore"></div>
 
-<div id="ticketsWrap">
 <h2>Tickets</h2>
-<div class="tform">
-  <select id="tkKind">
-    <option value="bug">bug</option>
-    <option value="issue" selected>issue</option>
-    <option value="suggestion">suggestion</option>
-  </select>
-  <input class="grow" id="tkTitle" placeholder="Title — the bug or suggestion" maxlength="200" />
-  <input class="grow" id="tkDesc" placeholder="Details (optional): context, repro steps, expected behavior" maxlength="2000" />
-  <select id="tkAgent"><option value="">auto-assign</option></select>
-  <button id="tkSubmit">Submit</button>
-</div>
-<table>
-  <thead><tr><th>Ticket</th><th>Status</th><th>Agent</th><th>Task</th><th>Attempts</th><th>Created</th><th>Note</th></tr></thead>
-  <tbody id="tickets"><tr><td colspan="7" class="empty">Loading tickets…</td></tr></tbody>
-</table>
-<div class="more" id="ticketsMore"></div>
-</div>
+<a class="ticketcard" href="/tickets">
+  <div>Open the ticket board — bug / issue / suggestion tickets, auto-dispatched to the best online coding agent.</div>
+  <div class="tstats" id="ticketCounts">loading…</div>
+</a>
 
 <h2>Delegated Tasks</h2>
 <table>
@@ -157,10 +176,8 @@ export const dashboardHtml = `<!doctype html>
 <script>
   var AGENT_LIMIT = 12;
   var TASK_LIMIT = 10;
-  var TICKET_LIMIT = 15;
   var AGENTS = [];
-  var ticketsHidden = false;
-  var lastTicketsKey = "";
+  var lastCountsKey = "";
   var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]; }); };
   var fmtDur = function (t) {
     if (!t.completedAt) return "—";
@@ -190,7 +207,6 @@ export const dashboardHtml = `<!doctype html>
     var el = document.getElementById("agents");
     var more = document.getElementById("agentsMore");
     AGENTS = agents.slice();
-    renderAgentSelect();
     if (!agents.length) { el.innerHTML = '<div class="empty">No agents registered yet. Run \\'x-agent-relay register\\' on a provider machine.</div>'; more.textContent = ""; return; }
     var order = { online: 0, busy: 1, offline: 2 };
     var sorted = agents.slice().sort(function (a, b) {
@@ -240,16 +256,204 @@ export const dashboardHtml = `<!doctype html>
     fetch("/api/stats").then(function (r) { return r.json(); }).then(renderStats).catch(function () {});
     fetch("/api/agents").then(function (r) { return r.json(); }).then(renderAgents).catch(function () {});
     fetch("/api/tasks?limit=50").then(function (r) { return r.json(); }).then(function (d) { renderTasks(d.tasks); }).catch(function () {});
-    fetch("/api/tickets?limit=100").then(function (r) { if (!r.ok) throw new Error("no tickets api"); return r.json(); }).then(function (d) { renderTickets(d.tickets); }).catch(hideTickets);
+    fetch("/api/tickets?limit=500").then(function (r) { if (!r.ok) throw new Error("no tickets api"); return r.json(); }).then(function (d) { renderTicketCounts(d.tickets); }).catch(function () {});
   }
   refresh();
   setInterval(refresh, 2000);
 
   /* ------------------------------------------------------------- tickets */
-  function hideTickets() {
-    if (ticketsHidden) return;
-    ticketsHidden = true;
-    document.getElementById("ticketsWrap").style.display = "none";
+  function renderTicketCounts(tickets) {
+    var el = document.getElementById("ticketCounts");
+    var key = tickets.length + ":" + tickets.map(function (t) { return t.status; }).join(",");
+    if (key === lastCountsKey) return;
+    lastCountsKey = key;
+    if (!tickets.length) { el.textContent = "no tickets yet — open the board to file the first one"; return; }
+    var n = { todo: 0, inreview: 0, done: 0 };
+    for (var i = 0; i < tickets.length; i++) if (n[tickets[i].status] != null) n[tickets[i].status]++;
+    el.innerHTML = '<b class="warn">' + n.todo + ' todo</b> · <b class="acc">' + n.inreview + ' in review</b> · <b class="ok">' + n.done + ' done</b>';
+  }
+</script>
+</body>
+</html>
+`;
+
+/**
+ * Standalone ticket board page (served at /tickets): three status columns
+ * (Todo / In Review / Done), quick-add form on top, and a per-column "+"
+ * button that opens a modal to file a ticket directly into that column.
+ */
+export const ticketsHtml = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent Relay — Ticket Board</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%2358a6ff'/%3E%3C/svg%3E" />
+<style>
+  :root { --bg:#0b0e14; --panel:#121722; --line:#1e2635; --fg:#e6edf3; --dim:#8b98a9; --ok:#3fb950; --warn:#d29922; --err:#f85149; --accent:#58a6ff; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--fg); font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; padding:32px; max-width:1280px; margin:0 auto; }
+  a { color:var(--accent); text-decoration:none; }
+  h1 { font-size:18px; letter-spacing:2px; }
+  h1 span { color:var(--accent); }
+  .toprow { display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  .topnav a { font-size:12px; letter-spacing:1px; text-transform:uppercase; }
+  .topnav a:hover { text-decoration:underline; }
+  .sub { color:var(--dim); margin-top:8px; max-width:820px; font-size:12.5px; }
+  .empty { color:var(--dim); padding:14px 2px; font-size:12px; }
+  .st { padding:1px 10px; border-radius:99px; font-size:11px; border:1px solid var(--line); }
+  .st.completed { color:var(--ok); } .st.failed,.st.timeout { color:var(--err); }
+  .st.cancelled { color:var(--warn); }
+  .st.running,.st.accepted,.st.assigned,.st.pending { color:var(--warn); }
+  /* top quick-add form */
+  .tform { display:flex; gap:8px; flex-wrap:wrap; margin:18px 0 4px; }
+  .tform input, .tform select, .tform button { background:#0d1117; border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:7px 10px; font:12px ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .tform input:focus, .tform select:focus { outline:none; border-color:var(--accent); }
+  .tform .grow { flex:1 1 240px; }
+  .tform button { cursor:pointer; color:var(--accent); }
+  .tform button:hover { border-color:var(--accent); }
+  /* board */
+  .board { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; align-items:start; margin-top:14px; }
+  @media (max-width:960px) { .board { grid-template-columns:1fr; } .cards { max-height:none; } }
+  .col { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .colhead { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:2px 4px 10px; border-bottom:1px solid var(--line); margin-bottom:10px; }
+  .colhead .label { font-size:12px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; }
+  .colhead .label.todo { color:var(--warn); } .colhead .label.inreview { color:var(--accent); } .colhead .label.done { color:var(--ok); }
+  .colhead .cnt { color:var(--dim); font-size:11px; margin-left:auto; }
+  .addbtn { background:none; border:1px solid var(--line); color:var(--dim); border-radius:6px; width:26px; height:26px; cursor:pointer; font-size:15px; line-height:1; flex:0 0 auto; }
+  .addbtn:hover { color:var(--accent); border-color:var(--accent); }
+  .cards { display:flex; flex-direction:column; gap:10px; max-height:calc(100vh - 300px); min-height:60px; overflow-y:auto; padding-right:2px; }
+  .card { background:#0d1117; border:1px solid var(--line); border-radius:8px; padding:12px; }
+  .card:hover { border-color:#2c3a52; }
+  .card .title { font-weight:700; font-size:13px; overflow-wrap:anywhere; }
+  .card .meta { color:var(--dim); font-size:11px; margin-top:4px; }
+  .card .task { margin-top:6px; font-size:11px; color:var(--dim); }
+  .card .note { margin-top:6px; }
+  .card .foot { display:flex; align-items:center; gap:6px; margin-top:10px; flex-wrap:wrap; }
+  .card .foot .tb { margin-left:auto; }
+  .note { color:var(--dim); font-size:12px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:middle; }
+  .kind { display:inline-block; padding:0 8px; border-radius:99px; font-size:10px; border:1px solid var(--line); vertical-align:middle; }
+  .kind.bug { color:var(--err); } .kind.issue { color:var(--warn); } .kind.suggestion { color:var(--accent); }
+  .tsel { background:#0d1117; border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:3px 6px; font:11px ui-monospace,SFMono-Regular,Menlo,monospace; max-width:170px; }
+  .tb { display:flex; gap:4px; }
+  .tb button { background:none; border:1px solid var(--line); color:var(--dim); border-radius:99px; padding:1px 10px; font-size:11px; cursor:pointer; }
+  .tb button:hover { color:var(--fg); }
+  .tb button.on.todo { color:var(--warn); border-color:var(--warn); }
+  .tb button.on.inreview { color:var(--accent); border-color:var(--accent); }
+  .tb button.on.done { color:var(--ok); border-color:var(--ok); }
+  /* modal */
+  .overlay { position:fixed; inset:0; background:rgba(4,8,14,.72); display:none; align-items:center; justify-content:center; z-index:50; }
+  .overlay.show { display:flex; }
+  .modal { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px 22px; width:min(500px,92vw); box-shadow:0 16px 48px rgba(0,0,0,.5); }
+  .modal h3 { font-size:14px; letter-spacing:1px; text-transform:uppercase; }
+  .modal h3.todo { color:var(--warn); } .modal h3.inreview { color:var(--accent); } .modal h3.done { color:var(--ok); }
+  .modal .mhint { color:var(--dim); font-size:12px; margin-top:4px; }
+  .modal .mform { display:flex; flex-direction:column; gap:10px; margin-top:14px; }
+  .modal input, .modal select, .modal textarea { background:#0d1117; border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:8px 10px; font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace; width:100%; }
+  .modal textarea { resize:vertical; min-height:72px; }
+  .modal input:focus, .modal select:focus, .modal textarea:focus { outline:none; border-color:var(--accent); }
+  .modal .mrow { display:flex; gap:10px; }
+  .modal .mrow > * { flex:1; }
+  .modal .mactions { display:flex; justify-content:flex-end; gap:8px; margin-top:4px; }
+  .modal .mbtn { background:#0d1117; border:1px solid var(--line); color:var(--accent); border-radius:6px; padding:8px 16px; font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace; cursor:pointer; }
+  .modal .mbtn:hover { border-color:var(--accent); }
+  .modal .mbtn.ghost { color:var(--dim); }
+  footer { margin-top:36px; padding-top:14px; border-top:1px solid var(--line); color:var(--dim); font-size:12px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+</style>
+</head>
+<body>
+<div class="toprow">
+  <h1>TICKET <span>BOARD</span></h1>
+  <nav class="topnav"><a href="/">← Agent Relay</a></nav>
+</div>
+<div class="sub">
+  Bug / issue / suggestion tickets. <b>todo</b> tickets are auto-dispatched to the
+  assigned (or best-matched online) coding agent; finished work lands in
+  <b>in review</b> for a human to mark done. Use the "+" on any column to file a
+  ticket directly into it.
+</div>
+
+<div class="tform">
+  <select id="tkKind">
+    <option value="bug">bug</option>
+    <option value="issue" selected>issue</option>
+    <option value="suggestion">suggestion</option>
+  </select>
+  <input class="grow" id="tkTitle" placeholder="Title — the bug or suggestion" maxlength="200" />
+  <input class="grow" id="tkDesc" placeholder="Details (optional): context, repro steps, expected behavior" maxlength="2000" />
+  <select id="tkAgent"><option value="">auto-assign</option></select>
+  <button id="tkSubmit">Submit</button>
+</div>
+
+<div class="board" id="board">
+  <div class="col" id="col-todo">
+    <div class="colhead"><span class="label todo">Todo</span><span class="cnt" id="cnt-todo"></span><button class="addbtn" data-add="todo" title="New ticket in Todo">+</button></div>
+    <div class="cards" id="cards-todo"><div class="empty">loading…</div></div>
+  </div>
+  <div class="col" id="col-inreview">
+    <div class="colhead"><span class="label inreview">In Review</span><span class="cnt" id="cnt-inreview"></span><button class="addbtn" data-add="inreview" title="New ticket in In Review">+</button></div>
+    <div class="cards" id="cards-inreview"><div class="empty">loading…</div></div>
+  </div>
+  <div class="col" id="col-done">
+    <div class="colhead"><span class="label done">Done</span><span class="cnt" id="cnt-done"></span><button class="addbtn" data-add="done" title="New ticket in Done">+</button></div>
+    <div class="cards" id="cards-done"><div class="empty">loading…</div></div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h3 id="mTitle">New ticket</h3>
+    <div class="mhint" id="mHint"></div>
+    <div class="mform">
+      <input id="mTicketTitle" placeholder="Title" maxlength="200" />
+      <textarea id="mTicketDesc" placeholder="Details (optional): context, repro steps, expected behavior" maxlength="2000"></textarea>
+      <div class="mrow">
+        <select id="mTicketKind">
+          <option value="bug">bug</option>
+          <option value="issue" selected>issue</option>
+          <option value="suggestion">suggestion</option>
+        </select>
+        <select id="mTicketAgent"><option value="">auto-assign</option></select>
+      </div>
+      <div class="mactions">
+        <button class="mbtn ghost" id="mCancel">Cancel</button>
+        <button class="mbtn" id="mSubmit">Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div><a href="/">← back to the relay dashboard</a></div>
+  <div id="clock"></div>
+</footer>
+
+<script>
+  var COLS = ["todo", "inreview", "done"];
+  var LABELS = { todo: "Todo", inreview: "In Review", done: "Done" };
+  var HINTS = {
+    todo: "Will be created in Todo — the ticket worker dispatches it to an online agent automatically.",
+    inreview: "Will be created directly in In Review (no auto-dispatch).",
+    done: "Will be created directly in Done (no auto-dispatch).",
+  };
+  var AGENTS = [];
+  var lastKey = "";
+  var modalStatus = "todo";
+  var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]; }); };
+  function tick() { document.getElementById("clock").textContent = new Date().toLocaleTimeString(); }
+  tick(); setInterval(tick, 1000);
+
+  function agentOptions(selected, emptyLabel) {
+    var html = '<option value="">' + (emptyLabel || "auto") + "</option>";
+    var found = !selected;
+    for (var i = 0; i < AGENTS.length; i++) {
+      var a = AGENTS[i];
+      var isSel = !!selected && a.id === selected;
+      if (isSel) found = true;
+      html += '<option value="' + esc(a.id) + '"' + (isSel ? " selected" : "") + ">" + esc(a.name) + (a.status === "online" ? "" : " (" + a.status + ")") + "</option>";
+    }
+    if (!found && selected) html += '<option value="' + esc(selected) + '" selected>' + esc(selected) + "</option>";
+    return html;
   }
   function renderAgentSelect() {
     var sel = document.getElementById("tkAgent");
@@ -261,97 +465,146 @@ export const dashboardHtml = `<!doctype html>
     if (sel.innerHTML !== html) sel.innerHTML = html;
     if (cur) sel.value = cur;
   }
-  function agentOptions(selected) {
-    var html = '<option value="">auto</option>';
-    var found = !selected;
-    for (var i = 0; i < AGENTS.length; i++) {
-      var a = AGENTS[i];
-      var isSel = !!selected && a.id === selected;
-      if (isSel) found = true;
-      html += '<option value="' + esc(a.id) + '"' + (isSel ? " selected" : "") + ">" + esc(a.name) + (a.status === "online" ? "" : " (" + a.status + ")") + "</option>";
-    }
-    if (!found && selected) html += '<option value="' + esc(selected) + '" selected>' + esc(selected) + "</option>";
-    return html;
-  }
-  function ticketRow(t) {
-    var sts = ["todo", "inreview", "done"];
-    var labels = { todo: "Todo", inreview: "InReview", done: "Done" };
+  function statusButtons(t) {
     var btns = "";
-    for (var i = 0; i < sts.length; i++) {
-      btns += '<button data-act="st" data-st="' + sts[i] + '" class="' + (t.status === sts[i] ? "on " + sts[i] : sts[i]) + '">' + labels[sts[i]] + "</button>";
+    for (var i = 0; i < COLS.length; i++) {
+      var s = COLS[i];
+      btns += '<button data-act="st" data-st="' + s + '" class="' + (t.status === s ? "on " + s : s) + '">' + LABELS[s] + "</button>";
     }
-    var task = "—";
-    if (t.task) {
-      task = esc(t.task.task_id.slice(0, 10)) + ' <span class="st ' + t.task.status + '">' + t.task.status + "</span>";
-    }
+    return btns;
+  }
+  function ticketCard(t) {
     var kind = esc(t.kind);
-    return '<tr data-id="' + esc(t.id) + '">' +
-      "<td><b>" + esc(t.title) + '</b> <span class="kind ' + kind + '">' + kind + '</span><div class="cell-sub">' + esc(t.id) + (t.reporter ? " · " + esc(t.reporter) : "") + "</div></td>" +
-      '<td><div class="tb">' + btns + "</div></td>" +
-      '<td><select class="tsel" data-act="agent">' + agentOptions(t.assignedAgentId) + "</select></td>" +
-      "<td>" + task + "</td>" +
-      "<td>" + t.attempts + "/3</td>" +
-      "<td>" + (t.createdAt ? new Date(t.createdAt).toLocaleString() : "—") + "</td>" +
-      "<td>" + (t.note ? '<span class="note" title="' + esc(t.note) + '">' + esc(t.note) + "</span>" : "—") + "</td>" +
-      "</tr>";
+    var descAttr = t.description ? ' title="' + esc(t.description) + '"' : "";
+    var task = "";
+    if (t.task) {
+      task = '<div class="task">task ' + esc(t.task.task_id.slice(0, 12)) + ' <span class="st ' + t.task.status + '">' + t.task.status + "</span></div>";
+    }
+    var note = t.note ? '<div class="note" title="' + esc(t.note) + '">' + esc(t.note) + "</div>" : "";
+    return '<div class="card" data-id="' + esc(t.id) + '">' +
+      '<div class="title"' + descAttr + ">" + esc(t.title) + ' <span class="kind ' + kind + '">' + kind + "</span></div>" +
+      '<div class="meta">' + esc(t.id) + (t.reporter ? " · " + esc(t.reporter) : "") + " · " +
+        (t.createdAt ? new Date(t.createdAt).toLocaleString() : "—") + " · attempts " + t.attempts + "/3</div>" +
+      task + note +
+      '<div class="foot"><select class="tsel" data-act="agent">' + agentOptions(t.assignedAgentId) + "</select>" +
+      '<div class="tb">' + statusButtons(t) + "</div></div></div>";
   }
-  function renderTickets(tickets) {
-    var el = document.getElementById("tickets");
-    var more = document.getElementById("ticketsMore");
-    // skip identical re-renders so open dropdowns / tooltips are not reset
+  function renderBoard(tickets) {
     var key = JSON.stringify(tickets) + "|" + AGENTS.map(function (a) { return a.id + ":" + a.status; }).join(",");
-    if (key === lastTicketsKey) return;
-    lastTicketsKey = key;
-    if (!tickets.length) { el.innerHTML = '<tr><td colspan="7" class="empty">No tickets yet. Submit a bug, issue, or suggestion above — the relay dispatches it to an online coding agent automatically.</td></tr>'; more.textContent = ""; return; }
-    var sorted = tickets.slice().sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
-    var shown = sorted.slice(0, TICKET_LIMIT);
-    more.textContent = sorted.length > shown.length ? "+ " + (sorted.length - shown.length) + " more ticket(s) not shown" : "";
-    el.innerHTML = shown.map(ticketRow).join("");
+    if (key === lastKey) return;
+    lastKey = key;
+    var by = { todo: [], inreview: [], done: [] };
+    for (var i = 0; i < tickets.length; i++) {
+      var t = tickets[i];
+      if (by[t.status]) by[t.status].push(t);
+    }
+    for (var c = 0; c < COLS.length; c++) {
+      var s = COLS[c];
+      var list = by[s];
+      document.getElementById("cnt-" + s).textContent = list.length ? String(list.length) : "";
+      var el = document.getElementById("cards-" + s);
+      if (!list.length) {
+        el.innerHTML = '<div class="empty">' + (s === "todo" ? "nothing queued — use + to file one" : "empty") + "</div>";
+      } else {
+        list.sort(function (a, b) { return (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0); });
+        el.innerHTML = list.map(ticketCard).join("");
+      }
+    }
   }
+  function refresh() {
+    fetch("/api/agents").then(function (r) { return r.json(); }).then(function (agents) { AGENTS = agents.slice(); renderAgentSelect(); }).catch(function () {});
+    fetch("/api/tickets?limit=500").then(function (r) { if (!r.ok) throw new Error("no tickets api"); return r.json(); }).then(function (d) { renderBoard(d.tickets); }).catch(function () {});
+  }
+  refresh();
+  setInterval(refresh, 2000);
+
+  function forceRefresh() { lastKey = ""; refresh(); }
   function patchTicket(id, patch) {
     fetch("/api/tickets/" + encodeURIComponent(id), {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(patch),
     }).then(function (r) { if (!r.ok) throw new Error("patch failed"); return r.json(); })
-      .then(function () { lastTicketsKey = ""; refresh(); })
+      .then(forceRefresh)
       .catch(function () {});
   }
-  var ticketsBody = document.getElementById("tickets");
-  ticketsBody.addEventListener("click", function (e) {
+  var board = document.getElementById("board");
+  board.addEventListener("click", function (e) {
     var btn = e.target && e.target.closest ? e.target.closest("button[data-act=st]") : null;
     if (!btn) return;
-    var row = btn.closest("tr");
-    if (row) patchTicket(row.getAttribute("data-id"), { status: btn.getAttribute("data-st") });
+    var card = btn.closest(".card");
+    if (card) patchTicket(card.getAttribute("data-id"), { status: btn.getAttribute("data-st") });
   });
-  ticketsBody.addEventListener("change", function (e) {
+  board.addEventListener("change", function (e) {
     var sel = e.target;
     if (!sel || sel.tagName !== "SELECT" || sel.getAttribute("data-act") !== "agent") return;
-    var row = sel.closest("tr");
-    if (row) patchTicket(row.getAttribute("data-id"), { assignedAgentId: sel.value || null });
+    var card = sel.closest(".card");
+    if (card) patchTicket(card.getAttribute("data-id"), { assignedAgentId: sel.value || null });
   });
+
+  /* -------------------------------------------------------- quick add (top) */
   document.getElementById("tkSubmit").addEventListener("click", function () {
     var titleEl = document.getElementById("tkTitle");
     var title = titleEl.value.trim();
     if (!title) { titleEl.focus(); return; }
+    createTicket({
+      title: title,
+      description: document.getElementById("tkDesc").value.trim(),
+      kind: document.getElementById("tkKind").value,
+      assignedAgentId: document.getElementById("tkAgent").value || null,
+      status: "todo",
+    }, function () {
+      titleEl.value = "";
+      document.getElementById("tkDesc").value = "";
+    });
+  });
+
+  /* ------------------------------------------------------------- modal add */
+  var overlay = document.getElementById("overlay");
+  function openModal(status) {
+    modalStatus = status;
+    var h = document.getElementById("mTitle");
+    h.textContent = "New ticket — " + LABELS[status];
+    h.className = status;
+    document.getElementById("mHint").textContent = HINTS[status];
+    var agentSel = document.getElementById("mTicketAgent");
+    var html = '<option value="">auto-assign</option>';
+    for (var i = 0; i < AGENTS.length; i++) html += '<option value="' + esc(AGENTS[i].id) + '">' + esc(AGENTS[i].name) + "</option>";
+    agentSel.innerHTML = html;
+    document.getElementById("mTicketTitle").value = "";
+    document.getElementById("mTicketDesc").value = "";
+    overlay.classList.add("show");
+    document.getElementById("mTicketTitle").focus();
+  }
+  function closeModal() { overlay.classList.remove("show"); }
+  document.querySelectorAll("button[data-add]").forEach(function (b) {
+    b.addEventListener("click", function () { openModal(b.getAttribute("data-add")); });
+  });
+  document.getElementById("mCancel").addEventListener("click", closeModal);
+  overlay.addEventListener("click", function (e) { if (e.target === overlay) closeModal(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeModal(); });
+  document.getElementById("mSubmit").addEventListener("click", function () {
+    var titleEl = document.getElementById("mTicketTitle");
+    var title = titleEl.value.trim();
+    if (!title) { titleEl.focus(); return; }
+    createTicket({
+      title: title,
+      description: document.getElementById("mTicketDesc").value.trim(),
+      kind: document.getElementById("mTicketKind").value,
+      assignedAgentId: document.getElementById("mTicketAgent").value || null,
+      status: modalStatus,
+    }, closeModal);
+  });
+
+  function createTicket(body, onDone) {
     fetch("/api/tickets", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        title: title,
-        description: document.getElementById("tkDesc").value.trim(),
-        kind: document.getElementById("tkKind").value,
-        assignedAgentId: document.getElementById("tkAgent").value || null,
-      }),
+      body: JSON.stringify(body),
     }).then(function (r) { if (!r.ok) throw new Error("create failed"); return r.json(); })
-      .then(function () {
-        titleEl.value = "";
-        document.getElementById("tkDesc").value = "";
-        lastTicketsKey = "";
-        refresh();
-      })
+      .then(function () { onDone(); forceRefresh(); })
       .catch(function () {});
-  });
+  }
 </script>
 </body>
 </html>

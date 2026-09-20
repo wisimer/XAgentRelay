@@ -43,8 +43,10 @@ program
 
 program
   .command("serve")
-  .description("Go online as a provider and wait for delegated tasks")
+  .description("Go online as a provider and wait for delegated tasks (workspace = current dir)")
   .option("--relay <url>", "relay server url")
+  .option("--cwd <path>", "workspace directory the agent works in (default: current directory)")
+  .option("--name <name>", "override the workspace agent name (default: <agent>@<dirname>)")
   .action(runServe);
 
 program

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -22,6 +22,11 @@ export interface RunOptions {
   signal?: AbortSignal;
   /** Live stdout deltas as the runtime produces them (best-effort). */
   onChunk?: (text: string) => void;
+  /**
+   * Provider workspace: run the runtime directly inside this directory with
+   * read/write access. Omitted → sandboxed throwaway temp dir (read-only mode).
+   */
+  cwd?: string;
 }
 
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
@@ -153,9 +158,15 @@ const CLI_RUNTIMES: Record<string, CliSpec> = {
 /**
  * Execute a delegated task with the local agent runtime.
  *
- * Context files are materialized inside a throwaway temp directory and the
- * runtime runs there — the provider machine's own files are never touched,
- * matching the MVP rule "remote expert analysis, not remote code edits".
+ * Two execution modes:
+ * - `opts.cwd` set (workspace mode): the runtime runs directly in that
+ *   directory and may read/write everything under it. Consumer context files
+ *   are embedded in the prompt text only — nothing is written into the
+ *   workspace on the consumer's behalf.
+ * - no cwd (sandbox mode): context files are materialized inside a throwaway
+ *   temp directory and the runtime runs there — the provider machine's own
+ *   files are never touched, matching the MVP rule "remote expert analysis,
+ *   not remote code edits".
  */
 export async function runTask(
   task: TaskEnvelope,
@@ -164,7 +175,16 @@ export async function runTask(
 ): Promise<RunOutcome> {
   if (runtime === "mock") return mockRun(task, opts.signal, opts.onChunk);
 
-  const prompt = buildTaskPrompt(task);
+  const prompt = buildTaskPrompt(task, { workspace: opts.cwd });
+  const timeoutMs = (task.requirements?.timeout ?? DEFAULT_TASK_TIMEOUT_S) * 1000;
+
+  if (opts.cwd) {
+    const workspace = resolve(opts.cwd);
+    const st = statSync(workspace, { throwIfNoEntry: false });
+    if (!st?.isDirectory()) throw new Error(`workspace directory not found: ${workspace}`);
+    return runInDir(prompt, task.goal, workspace, runtime, timeoutMs, opts);
+  }
+
   const dir = mkdtempSync(join(tmpdir(), "x-agent-relay-task-"));
   try {
     for (const file of task.context?.files ?? []) {
@@ -173,59 +193,69 @@ export async function runTask(
       mkdirSync(dirname(safe), { recursive: true });
       writeFileSync(safe, file.content, "utf8");
     }
-    const timeoutMs = (task.requirements?.timeout ?? DEFAULT_TASK_TIMEOUT_S) * 1000;
-
-    if (runtime === "claude-code") {
-      // stream-json emits one NDJSON event per turn so consumers see progress
-      // as it happens; the final {"type":"result"} line carries result+usage.
-      const lines: ClaudeStreamEvent[] = [];
-      let pending = "";
-      const onEvent = (text: string) => {
-        pending += text;
-        let idx;
-        while ((idx = pending.indexOf("\n")) >= 0) {
-          const line = pending.slice(0, idx).trim();
-          pending = pending.slice(idx + 1);
-          if (!line) continue;
-          try {
-            const ev = JSON.parse(line) as ClaudeStreamEvent;
-            lines.push(ev);
-            const chunk = claudeEventChunk(ev);
-            if (chunk) opts.onChunk?.(chunk);
-          } catch {
-            /* partial / non-JSON line — ignore */
-          }
-        }
-      };
-      const { stdout } = await runCli(
-        "claude",
-        ["-p", prompt, "--output-format", "stream-json", "--verbose"],
-        { cwd: dir, timeoutMs, signal: opts.signal, onChunk: onEvent },
-      );
-      const tail = pending.trim();
-      if (tail) {
-        try {
-          lines.push(JSON.parse(tail) as ClaudeStreamEvent);
-        } catch {
-          /* ignore */
-        }
-      }
-      return parseClaudeStream(lines, stdout, task.goal);
-    }
-    const spec = CLI_RUNTIMES[runtime];
-    if (spec) {
-      const { stdout } = await runCli(spec.bin, spec.args(prompt), {
-        cwd: dir,
-        timeoutMs,
-        signal: opts.signal,
-        onChunk: opts.onChunk,
-      });
-      return textRunOutcome(stdout, task.goal);
-    }
-    throw new Error(`unsupported runtime: ${runtime}`);
+    return runInDir(prompt, task.goal, dir, runtime, timeoutMs, opts);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/** Shared runner: execute the runtime CLI for `prompt` inside `dir`. */
+async function runInDir(
+  prompt: string,
+  goal: string,
+  dir: string,
+  runtime: string,
+  timeoutMs: number,
+  opts: RunOptions,
+): Promise<RunOutcome> {
+  if (runtime === "claude-code") {
+    // stream-json emits one NDJSON event per turn so consumers see progress
+    // as it happens; the final {"type":"result"} line carries result+usage.
+    const lines: ClaudeStreamEvent[] = [];
+    let pending = "";
+    const onEvent = (text: string) => {
+      pending += text;
+      let idx;
+      while ((idx = pending.indexOf("\n")) >= 0) {
+        const line = pending.slice(0, idx).trim();
+        pending = pending.slice(idx + 1);
+        if (!line) continue;
+        try {
+          const ev = JSON.parse(line) as ClaudeStreamEvent;
+          lines.push(ev);
+          const chunk = claudeEventChunk(ev);
+          if (chunk) opts.onChunk?.(chunk);
+        } catch {
+          /* partial / non-JSON line — ignore */
+        }
+      }
+    };
+    const { stdout } = await runCli(
+      "claude",
+      ["-p", prompt, "--output-format", "stream-json", "--verbose"],
+      { cwd: dir, timeoutMs, signal: opts.signal, onChunk: onEvent },
+    );
+    const tail = pending.trim();
+    if (tail) {
+      try {
+        lines.push(JSON.parse(tail) as ClaudeStreamEvent);
+      } catch {
+        /* ignore */
+      }
+    }
+    return parseClaudeStream(lines, stdout, goal);
+  }
+  const spec = CLI_RUNTIMES[runtime];
+  if (spec) {
+    const { stdout } = await runCli(spec.bin, spec.args(prompt), {
+      cwd: dir,
+      timeoutMs,
+      signal: opts.signal,
+      onChunk: opts.onChunk,
+    });
+    return textRunOutcome(stdout, goal);
+  }
+  throw new Error(`unsupported runtime: ${runtime}`);
 }
 
 /** Reject paths that escape the temp directory. */

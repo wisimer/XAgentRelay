@@ -2,6 +2,7 @@
 
 ## 2026-09-20
 
+- [chore: 提交并推送遗留的 CLI 版本号变更](2026-09-20/chore-commit-version-bump-tkt-7979de4f3b69.md)
 - [feat: serve 工作区模式 + 工单看板独立页面](2026-09-20/feat-serve-workspace-and-tickets-page.md)
 
 - [chore: 自动 git commit 处理工单](2026-09-20/chore-auto-git-commit.md)

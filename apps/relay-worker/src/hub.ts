@@ -13,8 +13,9 @@ import {
   type RelayMessage,
   type TaskRecord,
   type TaskStatus,
+  type TicketRecord,
 } from "@x-agent-relay/protocol";
-import { StreamHub } from "@x-agent-relay/relay-core";
+import { StreamHub, processTickets, type TicketBackend } from "@x-agent-relay/relay-core";
 import type { Hono } from "hono";
 import { buildRoutes } from "./routes";
 import { newId, newToken } from "./ids";
@@ -23,6 +24,7 @@ import type { Env } from "./index";
 /** Sweeper cadence (node server: 5s; here slightly relaxed to limit DO wakes). */
 const SWEEP_MS = 10_000;
 const MAX_TASKS = 5000;
+const MAX_TICKETS = 1000;
 
 /** Serialized onto each provider socket so identity survives hibernation. */
 interface SocketMeta {
@@ -35,9 +37,10 @@ interface SocketMeta {
  * KV (write-through from in-memory maps); the sweeper runs on `alarm()`
  * instead of setInterval, which doesn't exist in Workers.
  */
-export class RelayHub extends DurableObject<Env> {
+export class RelayHub extends DurableObject<Env> implements TicketBackend {
   private agents = new Map<string, AgentRecord>();
   private tasks = new Map<string, TaskRecord>();
+  private tickets = new Map<string, TicketRecord>();
   private sockets = new Map<string, WebSocket>();
   /** Live SSE subscribers per task, fanned out from provider task_chunk. */
   readonly streams = new StreamHub();
@@ -63,6 +66,14 @@ export class RelayHub extends DurableObject<Env> {
         this.ctx.storage.delete(sorted.slice(MAX_TASKS).map((t) => `task:${t.task_id}`)),
       );
     }
+    const storedTickets = await this.ctx.storage.list<TicketRecord>({ prefix: "ticket:" });
+    const sortedTickets = [...storedTickets.values()].sort((a, b) => b.createdAt - a.createdAt);
+    for (const ticket of sortedTickets.slice(0, MAX_TICKETS)) this.tickets.set(ticket.id, ticket);
+    if (sortedTickets.length > MAX_TICKETS) {
+      this.ctx.waitUntil(
+        this.ctx.storage.delete(sortedTickets.slice(MAX_TICKETS).map((t) => `ticket:${t.id}`)),
+      );
+    }
 
     // Sockets survive DO restarts via hibernation: re-attach them. Agents
     // without a live socket are offline until they reconnect.
@@ -86,6 +97,10 @@ export class RelayHub extends DurableObject<Env> {
 
   private putTask(task: TaskRecord): void {
     this.ctx.waitUntil(this.ctx.storage.put(`task:${task.task_id}`, task));
+  }
+
+  private putTicket(ticket: TicketRecord): void {
+    this.ctx.waitUntil(this.ctx.storage.put(`ticket:${ticket.id}`, ticket));
   }
 
   private async ensureAlarm(): Promise<void> {
@@ -197,6 +212,60 @@ export class RelayHub extends DurableObject<Env> {
     const n = agent.requestCount;
     agent.avgLatencyMs = Math.round(agent.avgLatencyMs + (latencyMs - agent.avgLatencyMs) / n);
     this.putAgent(agent);
+  }
+
+  /* -------------------------------------------------------- tickets (Store) */
+
+  createTicket(input: {
+    title: string;
+    description?: string;
+    kind?: string;
+    reporter?: string | null;
+    assignedAgentId?: string | null;
+  }): TicketRecord {
+    const now = Date.now();
+    const ticket: TicketRecord = {
+      id: newId("tkt"),
+      title: input.title,
+      description: input.description ?? "",
+      kind: input.kind ?? "issue",
+      status: "todo",
+      assignedAgentId: input.assignedAgentId ?? null,
+      taskIds: [],
+      attempts: 0,
+      reporter: input.reporter ?? null,
+      note: null,
+      syncedTaskId: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.tickets.set(ticket.id, ticket);
+    this.putTicket(ticket);
+    return ticket;
+  }
+
+  getTicket(id: string): TicketRecord | undefined {
+    return this.tickets.get(id);
+  }
+
+  updateTicket(id: string, patch: Partial<TicketRecord>): TicketRecord | undefined {
+    const ticket = this.tickets.get(id);
+    if (!ticket) return undefined;
+    Object.assign(ticket, patch, { id: ticket.id, createdAt: ticket.createdAt });
+    ticket.updatedAt = Date.now();
+    this.putTicket(ticket);
+    return ticket;
+  }
+
+  listTickets(filter: { status?: TicketRecord["status"]; limit?: number } = {}): TicketRecord[] {
+    let tickets = [...this.tickets.values()].sort((a, b) => b.createdAt - a.createdAt);
+    if (filter.status) tickets = tickets.filter((t) => t.status === filter.status);
+    return tickets.slice(0, filter.limit ?? 200);
+  }
+
+  /** TicketBackend: task ids come from the Workers-safe id helper. */
+  newTaskId(): string {
+    return newId("task");
   }
 
   /* ------------------------------------------------------ provider sockets */
@@ -397,7 +466,9 @@ export class RelayHub extends DurableObject<Env> {
   /**
    * Enforce task deadlines and mark agents offline when their socket
    * disappears without a close event (crash, network partition). Runs on the
-   * DO alarm; reschedules itself.
+   * DO alarm; reschedules itself. The same wake drives the ticket worker
+   * (node server: dedicated 3s interval; here piggybacked at 10s to limit
+   * DO wakes — todo tickets just wait a beat longer before dispatch).
    */
   async alarm(): Promise<void> {
     const now = Date.now();
@@ -418,6 +489,11 @@ export class RelayHub extends DurableObject<Env> {
         !this.hasConnection(agent.id) &&
         (!agent.lastHeartbeat || now - agent.lastHeartbeat > OFFLINE_AFTER_MS);
       if (stale) this.setAgentStatus(agent.id, "offline");
+    }
+    // ticket worker: dispatch due todo tickets, fold finished tasks back in
+    const ticketPass = processTickets(this, this.listTickets({ limit: 1000 }));
+    if (ticketPass.synced || ticketPass.dispatched) {
+      console.log(`[relay] tickets: ${ticketPass.dispatched} dispatched, ${ticketPass.synced} synced`);
     }
     // backstop: close SSE subscribers of any task that reached a terminal state
     this.streams.finishTerminal(this.listTasks({ limit: 10000 }));

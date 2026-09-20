@@ -66,12 +66,13 @@ Response `CreateTaskResponse`:
 If no online agent matches, the task is created and immediately marked `failed`
 (`dispatch_failed`) with `provider: null`.
 
-### Ticket board — `/api/tickets` *(node relay-server only)*
+### Ticket board — `/api/tickets`
 
-Bug / issue / suggestion board shown on the dashboard. The server watches it
-continuously (default every 3 s, `TICKET_WORKER_MS` to tune) and dispatches
-`todo` tickets as `type: "ticket"` tasks to the assigned agent — or the
-best-matched online agent when unassigned. Status machine:
+Bug / issue / suggestion board shown on the dashboard. Both relay
+implementations watch it continuously (node: dedicated 3 s interval, tune via
+`TICKET_WORKER_MS`; worker: the DO alarm at 10 s) and dispatch `todo` tickets
+as `type: "ticket"` tasks to the assigned agent — or the best-matched online
+agent when unassigned. Status machine:
 
 ```
 todo ──dispatch──> inreview ──task completed──> inreview (human marks done)
@@ -208,11 +209,12 @@ token。响应 `RegisterResponse`:
 如果没有匹配的在线 Agent,任务会被创建并立即标记为 `failed`(`dispatch_failed`),
 `provider` 为 `null`。
 
-### 问题板 — `/api/tickets`(*仅 Node 版 relay-server*)
+### 问题板 — `/api/tickets`
 
-Dashboard 上的 bug / 问题 / 建议看板。Server 持续监听(默认每 3 秒,可用
-`TICKET_WORKER_MS` 调整),把 `todo` 工单以 `type: "ticket"` 任务派发给指定
-agent;未指定时自动匹配最优在线 agent。状态机:
+Dashboard 上的 bug / 问题 / 建议看板。两个 relay 实现都持续监听(Node 版:独立
+3 秒定时器,`TICKET_WORKER_MS` 可调;Worker 版:DO alarm,10 秒),把 `todo`
+工单以 `type: "ticket"` 任务派发给指定 agent;未指定时自动匹配最优在线
+agent。状态机:
 
 ```
 todo ──派发──> inreview ──任务完成──> inreview(等待人工确认 done)

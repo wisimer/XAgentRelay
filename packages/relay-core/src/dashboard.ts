@@ -55,6 +55,24 @@ export const dashboardHtml = `<!doctype html>
   .st.cancelled { color:var(--warn); }
   .st.running,.st.accepted,.st.assigned,.st.pending { color:var(--warn); }
   .empty { color:var(--dim); padding:18px 0; }
+  .cell-sub { color:var(--dim); font-size:11px; margin-top:2px; }
+  /* tickets */
+  #ticketsWrap .tform { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .tform input, .tform select, .tform button { background:#0d1117; border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:7px 10px; font:12px ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .tform input:focus, .tform select:focus { outline:none; border-color:var(--accent); }
+  .tform .grow { flex:1 1 240px; }
+  .tform button { cursor:pointer; color:var(--accent); }
+  .tform button:hover { border-color:var(--accent); }
+  select.tsel { background:#0d1117; border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:3px 6px; font:11px ui-monospace,SFMono-Regular,Menlo,monospace; max-width:170px; }
+  .tb { display:flex; gap:4px; }
+  .tb button { background:none; border:1px solid var(--line); color:var(--dim); border-radius:99px; padding:1px 10px; font-size:11px; cursor:pointer; }
+  .tb button:hover { color:var(--fg); }
+  .tb button.on.todo { color:var(--warn); border-color:var(--warn); }
+  .tb button.on.inreview { color:var(--accent); border-color:var(--accent); }
+  .tb button.on.done { color:var(--ok); border-color:var(--ok); }
+  .kind { display:inline-block; padding:0 8px; border-radius:99px; font-size:10px; border:1px solid var(--line); vertical-align:middle; }
+  .kind.bug { color:var(--err); } .kind.issue { color:var(--warn); } .kind.suggestion { color:var(--accent); }
+  .note { color:var(--dim); font-size:12px; max-width:210px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:middle; }
   .tt { position:relative; color:var(--accent); cursor:default; }
   .tt .pop { display:none; position:absolute; bottom:calc(100% + 8px); left:0; background:#0d1117; border:1px solid var(--line); border-radius:8px; padding:12px 14px; width:270px; z-index:20; box-shadow:0 8px 24px rgba(0,0,0,.45); font-size:12px; color:var(--fg); }
   .tt:hover .pop { display:block; }
@@ -104,6 +122,26 @@ export const dashboardHtml = `<!doctype html>
 <div class="agents" id="agents"></div>
 <div class="more" id="agentsMore"></div>
 
+<div id="ticketsWrap">
+<h2>Tickets</h2>
+<div class="tform">
+  <select id="tkKind">
+    <option value="bug">bug</option>
+    <option value="issue" selected>issue</option>
+    <option value="suggestion">suggestion</option>
+  </select>
+  <input class="grow" id="tkTitle" placeholder="Title — the bug or suggestion" maxlength="200" />
+  <input class="grow" id="tkDesc" placeholder="Details (optional): context, repro steps, expected behavior" maxlength="2000" />
+  <select id="tkAgent"><option value="">auto-assign</option></select>
+  <button id="tkSubmit">Submit</button>
+</div>
+<table>
+  <thead><tr><th>Ticket</th><th>Status</th><th>Agent</th><th>Task</th><th>Attempts</th><th>Created</th><th>Note</th></tr></thead>
+  <tbody id="tickets"><tr><td colspan="7" class="empty">Loading tickets…</td></tr></tbody>
+</table>
+<div class="more" id="ticketsMore"></div>
+</div>
+
 <h2>Delegated Tasks</h2>
 <table>
   <thead><tr><th>ID</th><th>Host</th><th>Provider</th><th>Model</th><th>Status</th><th>Created</th><th>Duration</th></tr></thead>
@@ -119,6 +157,10 @@ export const dashboardHtml = `<!doctype html>
 <script>
   var AGENT_LIMIT = 12;
   var TASK_LIMIT = 10;
+  var TICKET_LIMIT = 15;
+  var AGENTS = [];
+  var ticketsHidden = false;
+  var lastTicketsKey = "";
   var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]; }); };
   var fmtDur = function (t) {
     if (!t.completedAt) return "—";
@@ -147,6 +189,8 @@ export const dashboardHtml = `<!doctype html>
   function renderAgents(agents) {
     var el = document.getElementById("agents");
     var more = document.getElementById("agentsMore");
+    AGENTS = agents.slice();
+    renderAgentSelect();
     if (!agents.length) { el.innerHTML = '<div class="empty">No agents registered yet. Run \\'x-agent-relay register\\' on a provider machine.</div>'; more.textContent = ""; return; }
     var order = { online: 0, busy: 1, offline: 2 };
     var sorted = agents.slice().sort(function (a, b) {
@@ -196,9 +240,118 @@ export const dashboardHtml = `<!doctype html>
     fetch("/api/stats").then(function (r) { return r.json(); }).then(renderStats).catch(function () {});
     fetch("/api/agents").then(function (r) { return r.json(); }).then(renderAgents).catch(function () {});
     fetch("/api/tasks?limit=50").then(function (r) { return r.json(); }).then(function (d) { renderTasks(d.tasks); }).catch(function () {});
+    fetch("/api/tickets?limit=100").then(function (r) { if (!r.ok) throw new Error("no tickets api"); return r.json(); }).then(function (d) { renderTickets(d.tickets); }).catch(hideTickets);
   }
   refresh();
   setInterval(refresh, 2000);
+
+  /* ------------------------------------------------------------- tickets */
+  function hideTickets() {
+    if (ticketsHidden) return;
+    ticketsHidden = true;
+    document.getElementById("ticketsWrap").style.display = "none";
+  }
+  function renderAgentSelect() {
+    var sel = document.getElementById("tkAgent");
+    var cur = sel.value;
+    var html = '<option value="">auto-assign</option>';
+    for (var i = 0; i < AGENTS.length; i++) {
+      html += '<option value="' + esc(AGENTS[i].id) + '">' + esc(AGENTS[i].name) + "</option>";
+    }
+    if (sel.innerHTML !== html) sel.innerHTML = html;
+    if (cur) sel.value = cur;
+  }
+  function agentOptions(selected) {
+    var html = '<option value="">auto</option>';
+    var found = !selected;
+    for (var i = 0; i < AGENTS.length; i++) {
+      var a = AGENTS[i];
+      var isSel = !!selected && a.id === selected;
+      if (isSel) found = true;
+      html += '<option value="' + esc(a.id) + '"' + (isSel ? " selected" : "") + ">" + esc(a.name) + (a.status === "online" ? "" : " (" + a.status + ")") + "</option>";
+    }
+    if (!found && selected) html += '<option value="' + esc(selected) + '" selected>' + esc(selected) + "</option>";
+    return html;
+  }
+  function ticketRow(t) {
+    var sts = ["todo", "inreview", "done"];
+    var labels = { todo: "Todo", inreview: "InReview", done: "Done" };
+    var btns = "";
+    for (var i = 0; i < sts.length; i++) {
+      btns += '<button data-act="st" data-st="' + sts[i] + '" class="' + (t.status === sts[i] ? "on " + sts[i] : sts[i]) + '">' + labels[sts[i]] + "</button>";
+    }
+    var task = "—";
+    if (t.task) {
+      task = esc(t.task.task_id.slice(0, 10)) + ' <span class="st ' + t.task.status + '">' + t.task.status + "</span>";
+    }
+    var kind = esc(t.kind);
+    return '<tr data-id="' + esc(t.id) + '">' +
+      "<td><b>" + esc(t.title) + '</b> <span class="kind ' + kind + '">' + kind + '</span><div class="cell-sub">' + esc(t.id) + (t.reporter ? " · " + esc(t.reporter) : "") + "</div></td>" +
+      '<td><div class="tb">' + btns + "</div></td>" +
+      '<td><select class="tsel" data-act="agent">' + agentOptions(t.assignedAgentId) + "</select></td>" +
+      "<td>" + task + "</td>" +
+      "<td>" + t.attempts + "/3</td>" +
+      "<td>" + (t.createdAt ? new Date(t.createdAt).toLocaleString() : "—") + "</td>" +
+      "<td>" + (t.note ? '<span class="note" title="' + esc(t.note) + '">' + esc(t.note) + "</span>" : "—") + "</td>" +
+      "</tr>";
+  }
+  function renderTickets(tickets) {
+    var el = document.getElementById("tickets");
+    var more = document.getElementById("ticketsMore");
+    // skip identical re-renders so open dropdowns / tooltips are not reset
+    var key = JSON.stringify(tickets) + "|" + AGENTS.map(function (a) { return a.id + ":" + a.status; }).join(",");
+    if (key === lastTicketsKey) return;
+    lastTicketsKey = key;
+    if (!tickets.length) { el.innerHTML = '<tr><td colspan="7" class="empty">No tickets yet. Submit a bug, issue, or suggestion above — the relay dispatches it to an online coding agent automatically.</td></tr>'; more.textContent = ""; return; }
+    var sorted = tickets.slice().sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+    var shown = sorted.slice(0, TICKET_LIMIT);
+    more.textContent = sorted.length > shown.length ? "+ " + (sorted.length - shown.length) + " more ticket(s) not shown" : "";
+    el.innerHTML = shown.map(ticketRow).join("");
+  }
+  function patchTicket(id, patch) {
+    fetch("/api/tickets/" + encodeURIComponent(id), {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(patch),
+    }).then(function (r) { if (!r.ok) throw new Error("patch failed"); return r.json(); })
+      .then(function () { lastTicketsKey = ""; refresh(); })
+      .catch(function () {});
+  }
+  var ticketsBody = document.getElementById("tickets");
+  ticketsBody.addEventListener("click", function (e) {
+    var btn = e.target && e.target.closest ? e.target.closest("button[data-act=st]") : null;
+    if (!btn) return;
+    var row = btn.closest("tr");
+    if (row) patchTicket(row.getAttribute("data-id"), { status: btn.getAttribute("data-st") });
+  });
+  ticketsBody.addEventListener("change", function (e) {
+    var sel = e.target;
+    if (!sel || sel.tagName !== "SELECT" || sel.getAttribute("data-act") !== "agent") return;
+    var row = sel.closest("tr");
+    if (row) patchTicket(row.getAttribute("data-id"), { assignedAgentId: sel.value || null });
+  });
+  document.getElementById("tkSubmit").addEventListener("click", function () {
+    var titleEl = document.getElementById("tkTitle");
+    var title = titleEl.value.trim();
+    if (!title) { titleEl.focus(); return; }
+    fetch("/api/tickets", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        title: title,
+        description: document.getElementById("tkDesc").value.trim(),
+        kind: document.getElementById("tkKind").value,
+        assignedAgentId: document.getElementById("tkAgent").value || null,
+      }),
+    }).then(function (r) { if (!r.ok) throw new Error("create failed"); return r.json(); })
+      .then(function () {
+        titleEl.value = "";
+        document.getElementById("tkDesc").value = "";
+        lastTicketsKey = "";
+        refresh();
+      })
+      .catch(function () {});
+  });
 </script>
 </body>
 </html>

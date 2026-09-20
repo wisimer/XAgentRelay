@@ -3,10 +3,16 @@ import {
   DEFAULT_TASK_PERMISSIONS,
   DEFAULT_TASK_TIMEOUT_S,
   PROTOCOL_VERSION,
+  TICKET_STATUSES,
   isTerminal,
   normalizeCapabilities,
   toPublicAgent,
   type CreateTaskRequest,
+  type CreateTicketRequest,
+  type TicketRecord,
+  type TicketStatus,
+  type TicketView,
+  type UpdateTicketRequest,
 } from "@x-agent-relay/protocol";
 import { newId } from "@x-agent-relay/shared";
 import { computeStats, dashboardHtml, selectAgent, taskStreamResponse, type StreamHub } from "@x-agent-relay/relay-core";
@@ -186,6 +192,103 @@ export function buildApp(store: Store, connections: AgentConnections, streams: S
   app.get("/api/stats", (c) =>
     c.json(computeStats(store.listAgents(), store.listTasks({ limit: 10000 }))),
   );
+
+  /* ------------------------------------------------------------- tickets */
+
+  const ticketView = (t: TicketRecord): TicketView => {
+    const agent = t.assignedAgentId ? store.getAgent(t.assignedAgentId) : undefined;
+    const latestId = t.taskIds.length ? t.taskIds[t.taskIds.length - 1] : null;
+    const task = latestId ? store.getTask(latestId) : undefined;
+    return {
+      ...t,
+      assignedAgent: agent ? toPublicAgent(agent) : null,
+      task: task ? { task_id: task.task_id, status: task.status, error: task.error } : null,
+    };
+  };
+
+  /** Create a ticket on the board. The ticket worker picks it up automatically. */
+  app.post("/api/tickets", async (c) => {
+    const body = (await c.req.json().catch(() => null)) as CreateTicketRequest | null;
+    const title = body?.title?.trim();
+    if (!title) return c.json({ error: "title is required" }, 400);
+    let assignedAgentId: string | null = null;
+    if (body?.assignedAgentId) {
+      if (!store.getAgent(String(body.assignedAgentId))) {
+        return c.json({ error: "assignedAgentId not found" }, 400);
+      }
+      assignedAgentId = String(body.assignedAgentId);
+    }
+    const ticket = store.createTicket({
+      title,
+      description: body?.description?.trim() || "",
+      kind: body?.kind ?? "issue",
+      reporter: body?.reporter ?? null,
+      assignedAgentId,
+    });
+    return c.json({ ticket: ticketView(ticket) }, 201);
+  });
+
+  app.get("/api/tickets", (c) => {
+    const status = c.req.query("status") as TicketStatus | undefined;
+    const tickets = store
+      .listTickets({
+        status: status && TICKET_STATUSES.includes(status) ? status : undefined,
+        limit: Number(c.req.query("limit") ?? 100),
+      })
+      .map(ticketView);
+    return c.json({ tickets });
+  });
+
+  app.get("/api/tickets/:id", (c) => {
+    const ticket = store.getTicket(c.req.param("id"));
+    if (!ticket) return c.json({ error: "ticket not found" }, 404);
+    return c.json({ ticket: ticketView(ticket) });
+  });
+
+  /**
+   * Manual update: status transitions (todo resets the retry counter so the
+   * worker re-dispatches) and agent assignment (null/"" = auto-match).
+   */
+  app.patch("/api/tickets/:id", async (c) => {
+    const ticket = store.getTicket(c.req.param("id"));
+    if (!ticket) return c.json({ error: "ticket not found" }, 404);
+    const body = (await c.req.json().catch(() => null)) as UpdateTicketRequest | null;
+    if (!body) return c.json({ error: "invalid JSON body" }, 400);
+
+    const patch: Partial<TicketRecord> = {};
+    if (body.title !== undefined) {
+      const title = body.title?.trim();
+      if (!title) return c.json({ error: "title cannot be empty" }, 400);
+      patch.title = title;
+    }
+    if (body.description !== undefined) patch.description = body.description ?? "";
+    if (body.status !== undefined) {
+      if (!TICKET_STATUSES.includes(body.status)) {
+        return c.json({ error: `status must be one of ${TICKET_STATUSES.join(", ")}` }, 400);
+      }
+      patch.status = body.status;
+      if (body.status === "todo" && ticket.status !== "todo") {
+        patch.attempts = 0; // manual re-open restarts the auto-dispatch cycle
+        patch.note = "re-opened by user";
+      }
+      // A manual status change consumes any pending task outcome, so a late
+      // sync of an already-finished task can never steamroll the user's pick.
+      if (ticket.taskIds.length > 0) {
+        patch.syncedTaskId = ticket.taskIds[ticket.taskIds.length - 1];
+      }
+    }
+    if (body.assignedAgentId !== undefined) {
+      if (!body.assignedAgentId) {
+        patch.assignedAgentId = null;
+      } else if (!store.getAgent(String(body.assignedAgentId))) {
+        return c.json({ error: "assignedAgentId not found" }, 400);
+      } else {
+        patch.assignedAgentId = String(body.assignedAgentId);
+      }
+    }
+    const updated = store.updateTicket(ticket.id, patch);
+    return c.json({ ticket: ticketView(updated!) });
+  });
 
   return app;
 }

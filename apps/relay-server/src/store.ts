@@ -7,12 +7,14 @@ import {
   type AgentRegistration,
   type TaskRecord,
   type TaskStatus,
+  type TicketRecord,
 } from "@x-agent-relay/protocol";
 import { newId, newToken } from "@x-agent-relay/shared";
 
 interface StoreData {
   agents: AgentRecord[];
   tasks: TaskRecord[];
+  tickets?: TicketRecord[];
 }
 
 /**
@@ -22,6 +24,7 @@ interface StoreData {
 export class Store {
   private agents = new Map<string, AgentRecord>();
   private tasks = new Map<string, TaskRecord>();
+  private tickets = new Map<string, TicketRecord>();
   private file: string;
   private saveTimer: NodeJS.Timeout | null = null;
 
@@ -37,6 +40,7 @@ export class Store {
       const data = JSON.parse(readFileSync(this.file, "utf8")) as StoreData;
       for (const a of data.agents ?? []) this.agents.set(a.id, { ...a, status: "offline" });
       for (const t of data.tasks ?? []) this.tasks.set(t.task_id, t);
+      for (const t of data.tickets ?? []) this.tickets.set(t.id, t);
     } catch {
       /* corrupt file — start fresh rather than crash */
     }
@@ -49,6 +53,7 @@ export class Store {
       const data: StoreData = {
         agents: [...this.agents.values()],
         tasks: [...this.tasks.values()].slice(-5000),
+        tickets: [...this.tickets.values()].slice(-1000),
       };
       writeFileSync(this.file, JSON.stringify(data), "utf8");
     }, 250);
@@ -157,5 +162,54 @@ export class Store {
     const n = agent.requestCount;
     agent.avgLatencyMs = Math.round(agent.avgLatencyMs + (latencyMs - agent.avgLatencyMs) / n);
     this.persist();
+  }
+
+  /* -------------------------------------------------------------- tickets */
+
+  createTicket(input: {
+    title: string;
+    description?: string;
+    kind?: string;
+    reporter?: string | null;
+    assignedAgentId?: string | null;
+  }): TicketRecord {
+    const now = Date.now();
+    const ticket: TicketRecord = {
+      id: newId("tkt"),
+      title: input.title,
+      description: input.description ?? "",
+      kind: input.kind ?? "issue",
+      status: "todo",
+      assignedAgentId: input.assignedAgentId ?? null,
+      taskIds: [],
+      attempts: 0,
+      reporter: input.reporter ?? null,
+      note: null,
+      syncedTaskId: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.tickets.set(ticket.id, ticket);
+    this.persist();
+    return ticket;
+  }
+
+  getTicket(id: string): TicketRecord | undefined {
+    return this.tickets.get(id);
+  }
+
+  updateTicket(id: string, patch: Partial<TicketRecord>): TicketRecord | undefined {
+    const ticket = this.tickets.get(id);
+    if (!ticket) return undefined;
+    Object.assign(ticket, patch, { id: ticket.id, createdAt: ticket.createdAt });
+    ticket.updatedAt = Date.now();
+    this.persist();
+    return ticket;
+  }
+
+  listTickets(filter: { status?: TicketRecord["status"]; limit?: number } = {}): TicketRecord[] {
+    let tickets = [...this.tickets.values()].sort((a, b) => b.createdAt - a.createdAt);
+    if (filter.status) tickets = tickets.filter((t) => t.status === filter.status);
+    return tickets.slice(0, filter.limit ?? 200);
   }
 }

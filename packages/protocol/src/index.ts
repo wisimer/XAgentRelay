@@ -209,6 +209,66 @@ export type RelayMessage =
   | { type: "task_cancel"; task_id: string }
   | { type: "error"; message: string };
 
+/* --------------------------------------------------------------- Tickets */
+
+export type TicketStatus = "todo" | "inreview" | "done";
+export type TicketKind = "bug" | "issue" | "suggestion";
+
+export const TICKET_STATUSES: TicketStatus[] = ["todo", "inreview", "done"];
+export const TICKET_KINDS: TicketKind[] = ["bug", "issue", "suggestion"];
+
+/** Auto-dispatch attempts before a failing ticket parks in todo for manual action. */
+export const TICKET_MAX_ATTEMPTS = 3;
+/** Seconds a provider gets to finish a ticket task (coding takes longer than analysis). */
+export const TICKET_TASK_TIMEOUT_S = 900;
+
+/**
+ * A bug / issue / suggestion from the relay dashboard's ticket board.
+ * The relay server watches these continuously: todo tickets are dispatched
+ * to a coding agent, and the task outcome drives the status transitions.
+ */
+export interface TicketRecord {
+  id: string;
+  title: string;
+  description: string;
+  kind: TicketKind | string;
+  status: TicketStatus;
+  /** Manually assigned agent; null = auto-match the best online agent. */
+  assignedAgentId: string | null;
+  /** Relay task ids created to process this ticket (latest last). */
+  taskIds: string[];
+  /** Dispatch attempts so far (reset when a user re-opens the ticket). */
+  attempts: number;
+  reporter: string | null;
+  /** Latest automation note: dispatch info, result summary, or failure error. */
+  note: string | null;
+  /** Task id whose terminal outcome was already applied to this ticket. */
+  syncedTaskId: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CreateTicketRequest {
+  title: string;
+  description?: string;
+  kind?: TicketKind | string;
+  reporter?: string;
+  assignedAgentId?: string | null;
+}
+
+export interface UpdateTicketRequest {
+  title?: string;
+  description?: string;
+  status?: TicketStatus;
+  assignedAgentId?: string | null;
+}
+
+/** TicketRecord with agent + latest task info embedded for list/detail APIs. */
+export interface TicketView extends TicketRecord {
+  assignedAgent: AgentPublic | null;
+  task: { task_id: string; status: TaskStatus; error: string | null } | null;
+}
+
 /* ------------------------------------------------------------ HTTP payload */
 
 export interface CreateTaskRequest {

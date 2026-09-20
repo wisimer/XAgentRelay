@@ -7,7 +7,8 @@ import {
   OFFLINE_AFTER_MS,
   isTerminal,
 } from "@x-agent-relay/protocol";
-import { StreamHub } from "@x-agent-relay/relay-core";
+import { StreamHub, processTickets, type TicketBackend } from "@x-agent-relay/relay-core";
+import { newId } from "@x-agent-relay/shared";
 import { buildApp } from "./api.js";
 import { AgentConnections } from "./connections.js";
 import { Store } from "./store.js";
@@ -63,6 +64,36 @@ setInterval(() => {
     if (stale) store.setAgentStatus(agent.id, "offline");
   }
 }, 5_000);
+
+/**
+ * Ticket worker: continuously watch the ticket board. Dispatches todo tickets
+ * to the assigned (or best-matched online) agent and folds finished task
+ * outcomes back into ticket statuses. todo → inreview on dispatch; completed
+ * tasks stay inreview for human review; failures fall back to todo (max 3
+ * attempts). Users can override status/assignment via the dashboard at any
+ * time — manual transitions always win over the next automation pass.
+ */
+const ticketBackend: TicketBackend = {
+  listAgents: () => store.listAgents(),
+  getAgent: (id) => store.getAgent(id),
+  getTask: (id) => store.getTask(id),
+  createTask: (task) => store.createTask(task),
+  updateTask: (id, patch) => store.updateTask(id, patch),
+  setTaskStatus: (id, status) => store.setTaskStatus(id, status),
+  updateTicket: (id, patch) => store.updateTicket(id, patch),
+  hasConnection: (id) => connections.has(id),
+  sendToAgent: (id, msg) => connections.send(id, msg),
+  setAgentStatus: (id, status) => store.setAgentStatus(id, status),
+  newTaskId: () => newId("task"),
+};
+
+const TICKET_WORKER_MS = Number(process.env.TICKET_WORKER_MS ?? 3000);
+setInterval(() => {
+  const result = processTickets(ticketBackend, store.listTickets({ limit: 1000 }));
+  if (result.synced || result.dispatched) {
+    console.log(`[relay] tickets: ${result.dispatched} dispatched, ${result.synced} synced`);
+  }
+}, TICKET_WORKER_MS);
 
 const shutdown = () => {
   console.log("\n[relay] shutting down");

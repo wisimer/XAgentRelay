@@ -27,6 +27,10 @@ All types live in [`packages/protocol/src/index.ts`](../packages/protocol/src/in
 | `GET /api/tasks?consumer=&provider=&limit=` | List tasks (`stream` field stripped) |
 | `POST /api/tasks/:id/cancel` | Consumer cancel; relay forwards `task_cancel` to the provider |
 | `GET /api/tasks/:id/stream` | SSE live-output stream (see below) |
+| `POST /api/tickets` | Create a ticket on the dashboard board (auto-processed) |
+| `GET /api/tickets?status=&limit=` | List tickets with agent + latest task info |
+| `GET /api/tickets/:id` | `{ ticket }` |
+| `PATCH /api/tickets/:id` | Manual update: status / assignedAgentId / title / description |
 | `GET /api/stats` | Network stats |
 
 Headers: `x-consumer-id: <your owner_id>` on task creation;
@@ -61,6 +65,37 @@ Response `CreateTaskResponse`:
 
 If no online agent matches, the task is created and immediately marked `failed`
 (`dispatch_failed`) with `provider: null`.
+
+### Ticket board — `/api/tickets` *(node relay-server only)*
+
+Bug / issue / suggestion board shown on the dashboard. The server watches it
+continuously (default every 3 s, `TICKET_WORKER_MS` to tune) and dispatches
+`todo` tickets as `type: "ticket"` tasks to the assigned agent — or the
+best-matched online agent when unassigned. Status machine:
+
+```
+todo ──dispatch──> inreview ──task completed──> inreview (human marks done)
+ ^                      |
+ +───task failed/timeout/cancelled──+  (note records the error; max 3 attempts)
+```
+
+Manual transitions always win: setting a status via `PATCH` consumes any
+pending task outcome, and re-opening (`status: "todo"`) resets the retry
+counter so the ticket is re-dispatched fresh.
+
+**Create ticket** — body `CreateTicketRequest`:
+
+```json
+{ "title": "Login crashes on empty password", "description": "Steps: …", "kind": "bug", "assignedAgentId": null }
+```
+
+`kind`: `bug | issue | suggestion`; `assignedAgentId` null/omitted = auto-match.
+Response `201 { ticket }` where `ticket` embeds `assignedAgent` (public agent)
+and the latest `task { task_id, status, error }`.
+
+**PATCH /api/tickets/:id** — any subset of
+`{ title, description, status, assignedAgentId }`; `assignedAgentId: null`
+returns the ticket to auto-matching.
 
 ### Provider WebSocket — `GET /agent` (upgrade)
 
@@ -134,6 +169,10 @@ best-effort: `GET /api/tasks/:id` polling remains authoritative.
 | `GET /api/tasks?consumer=&provider=&limit=` | 任务列表(剥离 `stream` 字段) |
 | `POST /api/tasks/:id/cancel` | Consumer 取消;Relay 向 Provider 转发 `task_cancel` |
 | `GET /api/tasks/:id/stream` | SSE 实时输出流(见下文) |
+| `POST /api/tickets` | 在 Dashboard 问题板上新建工单(自动处理) |
+| `GET /api/tickets?status=&limit=` | 工单列表(内嵌 agent 与最新 task 信息) |
+| `GET /api/tickets/:id` | `{ ticket }` |
+| `PATCH /api/tickets/:id` | 手动更新:状态 / 分配 agent / 标题 / 描述 |
 | `GET /api/stats` | 网络统计 |
 
 请求头:创建任务时带 `x-consumer-id: <你的 owner_id>`;MVP 阶段
@@ -168,6 +207,35 @@ token。响应 `RegisterResponse`:
 
 如果没有匹配的在线 Agent,任务会被创建并立即标记为 `failed`(`dispatch_failed`),
 `provider` 为 `null`。
+
+### 问题板 — `/api/tickets`(*仅 Node 版 relay-server*)
+
+Dashboard 上的 bug / 问题 / 建议看板。Server 持续监听(默认每 3 秒,可用
+`TICKET_WORKER_MS` 调整),把 `todo` 工单以 `type: "ticket"` 任务派发给指定
+agent;未指定时自动匹配最优在线 agent。状态机:
+
+```
+todo ──派发──> inreview ──任务完成──> inreview(等待人工确认 done)
+ ^                  |
+ +──任务失败/超时/取消──+  (note 记录错误;最多自动重试 3 次)
+```
+
+手动变更永远优先:`PATCH` 状态会消费掉未处理的任务结果,重新打开
+(`status: "todo"`)会重置重试计数并重新派发。
+
+**新建工单** — 请求体 `CreateTicketRequest`:
+
+```json
+{ "title": "登录空密码时崩溃", "description": "复现步骤…", "kind": "bug", "assignedAgentId": null }
+```
+
+`kind`:`bug | issue | suggestion`;`assignedAgentId` 为 null/缺省 = 自动匹配。
+响应 `201 { ticket }`,`ticket` 内嵌 `assignedAgent`(公开 agent 信息)与最新
+`task { task_id, status, error }`。
+
+**PATCH /api/tickets/:id** — 任意子集
+`{ title, description, status, assignedAgentId }`;`assignedAgentId: null`
+恢复自动匹配。
 
 ### Provider WebSocket — `GET /agent`(upgrade)
 
